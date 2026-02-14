@@ -1,0 +1,92 @@
+import numpy as np
+from tqdm import tqdm
+from time import time
+import matplotlib.pyplot as plt
+
+from src.simone2026.agents import MLPConfig, MLPAgent
+from src.simone2026.puyo import PuyoGame
+from src.simone2026.mcts import MCTSConfig
+from src.simone2026.replay import ReplayConfig
+from src.simone2026.actor import Actor
+
+
+if __name__ == '__main__':
+    mlp_config = MLPConfig(
+        n_common_hidden_layers=2,
+        n_common_neurons_per_layer=256,
+        n_value_hidden_layers=1,
+        n_value_neurons_per_layer=256,
+        n_policy_hidden_layers=1,
+        n_policy_neurons_per_layer=256,
+        learning_rate=1e-3,
+        batch_size=1024
+    )
+
+    mlp_agent = MLPAgent(name='testagent', config=mlp_config)
+    mlp_agent.build_model(summary=False)
+
+    max_moves = 20
+    puyo_game = PuyoGame(max_moves=max_moves)
+
+    mcts_config = MCTSConfig(
+        n_simulations=1000,
+        UCT_exploration_constant=4.,
+        discount_factor=0.99
+    )
+
+    replay_config = ReplayConfig(
+        max_capacity=10000
+    )
+
+    actor = Actor(mlp_agent, puyo_game, mlp_config, mcts_config, replay_config)
+
+    # TRAINING / TEST CYCLES
+    n_cycles = 20
+    for i in range(n_cycles):
+        print(f'CYCLE {i + 1}')
+
+        # SAMPLE COLLECTION AND TRAINING LOOP
+        n_episodes = 10
+        for j in range(n_episodes):
+            print(f'EPISODE {j + 1}')
+            actor.collect_game()
+            if len(actor.replay_buffer.observations) >= mlp_config.batch_size:
+                actor.train_on_batch()
+
+        # TEST
+        print('TEST GAMES')
+        n_test_games = 1000
+        test_rewards = []
+        for _ in tqdm(range(n_test_games)):
+            best_reward = actor.play_test_game()
+            test_rewards.append(best_reward)
+        average_test_reward = np.mean(test_rewards)
+        actor.agent.test_scores.append(average_test_reward)
+
+    # training loss plot
+    _, ax = plt.subplots()
+    value_head_loss = [losses[0] for losses in actor.agent.training_loss]
+    policy_head_loss = [losses[1] for losses in actor.agent.training_loss]
+    ax.semilogy(value_head_loss, label='value head loss')
+    ax.semilogy(policy_head_loss, label='policy head loss')
+    ax.grid()
+    ax.legend()
+    ax.set_xlabel('Training steps')
+    ax.set_ylabel('Loss')
+    ax.set_title('Training losses')
+    plt.savefig('./testagent_training_losses.png')
+
+    # test plot
+    _, ax = plt.subplots()
+    ax.plot(actor.agent.test_scores)
+    ax.grid()
+    ax.set_xlabel('Test cycles')
+    ax.set_ylabel('Average reward')
+    ax.set_title('Average test rewards (no MCTS)')
+    plt.savefig('./testagent_test_rewards.png')
+
+    # save
+    replay_path_to_dir = '../saved_data/'
+    agent_path_to_dir = '../saved_agents/'
+    actor.agent.save_model(agent_path_to_dir)
+    actor.replay_buffer.save(replay_path_to_dir)

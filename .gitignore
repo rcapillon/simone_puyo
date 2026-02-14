@@ -1,0 +1,8 @@
+# exclude some folders
+venv/
+saved_agents/
+saved_data/
+# exclude some files
+TODO.txt
+*.png
+*.pkl
