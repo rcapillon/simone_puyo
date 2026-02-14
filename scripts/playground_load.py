@@ -31,7 +31,7 @@ if __name__ == '__main__':
 
     mcts_config = MCTSConfig(
         n_simulations=1000,
-        UCT_exploration_constant=4.,
+        UCT_exploration_constant=2.,
         discount_factor=0.99
     )
 
@@ -53,7 +53,8 @@ if __name__ == '__main__':
         n_episodes = 10
         for j in range(n_episodes):
             print(f'EPISODE {j + 1}')
-            actor.collect_game()
+            collected_reward = actor.collect_game()
+            print(f'Collected reward: {collected_reward}')
             if len(actor.replay_buffer.observations) >= mlp_config.batch_size:
                 actor.train_on_batch()
 
