@@ -39,6 +39,7 @@ class Actor:
         observation = self.reset_game()
 
         step = 1
+        total_reward = 0.
         done = False
         while not done:
             legal_actions = self.game.get_legal_actions()
@@ -47,6 +48,7 @@ class Actor:
             action = legal_actions[random_index]
 
             next_observation, reward, done = self.game.step(action)
+            total_reward += reward
 
             episode_buffer.store_transition(observation, reward, policy)
             observation = next_observation
@@ -60,6 +62,8 @@ class Actor:
 
         self.replay_buffer.add_episode(episode_buffer)
         self.replay_buffer.trim_buffer()
+
+        return total_reward
 
     def act(self):
         """
