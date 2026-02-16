@@ -1,4 +1,5 @@
 import numpy as np
+from multiprocessing import Pool
 
 from .mcts import run_mcts
 from .utils import random_argmax_in_array
@@ -60,10 +61,13 @@ class Actor:
                 terminal_reward = GAMEOVER_REWARD
                 episode_buffer.store_terminal_state(observation, terminal_reward)
 
-        self.replay_buffer.add_episode(episode_buffer)
-        self.replay_buffer.trim_buffer()
+        return episode_buffer
 
-        return total_reward
+    def collect_games_parallel(self, n_cpu=1):
+        pool = Pool(n_cpu)
+        for episode_buffer in pool.starmap(self.collect_game, [()] * n_cpu):
+            self.replay_buffer.add_episode(episode_buffer)
+            self.replay_buffer.trim_buffer()
 
     def act(self):
         """
@@ -79,14 +83,14 @@ class Actor:
 
         return observation, reward, done
 
-    def train_on_batch(self):
+    def train_on_batch(self, epochs=1, verbose=2):
         """
         train agent for a single step from a random sample batch
         """
         batch_observations, batch_returns, batch_policies = self.replay_buffer.sample_batch(
             self.agent_config.batch_size
         )
-        self.agent.train(batch_observations, batch_returns, batch_policies)
+        self.agent.train(batch_observations, batch_returns, batch_policies, epochs=epochs, verbose=verbose)
 
     def play_test_game(self):
         """

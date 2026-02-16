@@ -12,23 +12,23 @@ from src.simone_puyo.actor import Actor
 
 if __name__ == '__main__':
     resnet_config = ResNetConfig(
-        num_res_blocks=10,
-        num_filters=256,
+        num_res_blocks=6,
+        num_filters=128,
         kernel_size=3,
         policy_filters=2,
-        policy_hidden_size=512,
+        policy_hidden_size=256,
         value_filters=1,
-        value_hidden_size=512,
+        value_hidden_size=256,
         l2_regularization=1e-4,
         use_batch_norm=True,
         learning_rate=1e-3,
-        batch_size=1024
+        batch_size=64
     )
 
     resnet_agent = ResNetAgent(name='resnet_agent_1', config=resnet_config)
     resnet_agent.build_model(summary=True)
 
-    max_moves = 20
+    max_moves = 10
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
@@ -38,23 +38,27 @@ if __name__ == '__main__':
     )
 
     replay_config = ReplayConfig(
-        max_capacity=10000
+        max_capacity=100000
     )
 
     actor = Actor(resnet_agent, puyo_game, resnet_config, mcts_config, replay_config)
 
     # TRAINING / TEST CYCLES
-    n_cycles = 2
+    n_cpu = 4
+    n_cycles = 3
+    buffer_min_length = 1000
+
+    t0 = time()
     for i in range(n_cycles):
         print(f'CYCLE {i + 1}')
 
         # SAMPLE COLLECTION AND TRAINING LOOP
-        n_episodes = 10
-        for j in range(n_episodes):
-            print(f'EPISODE {j + 1}')
-            collected_reward = actor.collect_game()
-            print(f'Collected reward: {collected_reward}')
-            if len(actor.replay_buffer.observations) >= resnet_config.batch_size:
+        episode_batch = 10
+        for j in range(episode_batch):
+            print(f'EPISODE BATCH {j + 1}')
+            actor.collect_games_parallel(n_cpu=n_cpu)
+            if (len(actor.replay_buffer.observations) >= resnet_config.batch_size
+                    and len(actor.replay_buffer.observations) >= buffer_min_length):
                 actor.train_on_batch()
 
         # TEST
@@ -66,6 +70,9 @@ if __name__ == '__main__':
             test_rewards.append(best_reward)
         average_test_reward = np.mean(test_rewards)
         actor.agent.test_scores.append(average_test_reward)
+    t1 = time()
+
+    print(f'Time elapsed: {t1 - t0} seconds.')
 
     # training loss plot
     _, ax = plt.subplots()
