@@ -12,13 +12,13 @@ from src.simone_puyo.actor import Actor
 
 if __name__ == '__main__':
     resnet_config = ResNetConfig(
-        num_res_blocks=6,
-        num_filters=128,
+        num_res_blocks=10,
+        num_filters=256,
         kernel_size=3,
         policy_filters=2,
-        policy_hidden_size=256,
+        policy_hidden_size=512,
         value_filters=1,
-        value_hidden_size=256,
+        value_hidden_size=512,
         l2_regularization=1e-4,
         use_batch_norm=True,
         learning_rate=5e-5,
