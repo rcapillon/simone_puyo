@@ -45,7 +45,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 5
+    n_cycles = 2
     buffer_min_length = 1000
 
     t0 = time()
