@@ -59,7 +59,7 @@ if __name__ == '__main__':
 
         # TEST
         print('TEST GAMES')
-        n_test_games = 1000
+        n_test_games = 100
         test_rewards = []
         for _ in tqdm(range(n_test_games)):
             best_reward = actor.play_test_game()

@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     t0 = time()
-    n_cycles = 10
+    n_cycles = 5
     for i in range(n_cycles):
         print(f'CYCLE {i + 1}')
 
@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
         # TEST
         print('TEST GAMES')
-        n_test_games = 1000
+        n_test_games = 100
         test_rewards = []
         for _ in tqdm(range(n_test_games)):
             best_reward = actor.play_test_game()
