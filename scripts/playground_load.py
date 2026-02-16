@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     mcts_config = MCTSConfig(
         n_simulations=1000,
-        UCT_exploration_constant=2.,
+        UCT_exploration_constant=1.5,
         discount_factor=0.99
     )
 
