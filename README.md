@@ -16,6 +16,3 @@ pip install .
 ## Usage
 For now, look in the scripts folder for usage examples. Two different agents, MLP and ResNet, are available. Samples 
 can be collected in parallel.
-
-## Limitations
-- The MCTS tree is not reused after each move which hinders search performance. 
