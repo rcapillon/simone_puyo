@@ -69,20 +69,6 @@ class Actor:
             self.replay_buffer.add_episode(episode_buffer)
             self.replay_buffer.trim_buffer()
 
-    def act(self):
-        """
-        perform a single action on the game board using MCTS
-        """
-        legal_actions = self.game.get_legal_actions()
-        _, policy = run_mcts(self.agent, self.game, self.mcts_config)
-
-        random_index = random_argmax_in_array(policy[legal_actions])
-        action = legal_actions[random_index]
-
-        observation, reward, done = self.game.step(action)
-
-        return observation, reward, done
-
     def train_on_batch(self, epochs=1, verbose=2):
         """
         train agent for a single step from a random sample batch
