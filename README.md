@@ -17,5 +17,4 @@ pip install .
 For now, look in the scripts folder for usage examples.
 
 ## Limitations
-- The only available agent is a simple feedforward network with a value and a policy head. ResNet will be added soon.
 - The MCTS tree is not reused after each move which hinders search performance. This will be fixed soon.
