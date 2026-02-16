@@ -28,7 +28,7 @@ if __name__ == '__main__':
     resnet_agent = ResNetAgent(name='resnet_agent_1', config=resnet_config)
     resnet_agent.build_model(summary=True)
 
-    max_moves = 10
+    max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(

@@ -29,7 +29,7 @@ if __name__ == '__main__':
     resnet_agent.load_model('../saved_agents', summary=False)
     print('Agent loaded.')
 
-    max_moves = 10
+    max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 5
+    n_cycles = 12  # 12 cycles take roughly one hour
     buffer_min_length = 1000
 
     t0 = time()
