@@ -3,34 +3,37 @@ from tqdm import tqdm
 from time import time
 import matplotlib.pyplot as plt
 
-from src.simone2026.agents import MLPConfig, MLPAgent
-from src.simone2026.puyo import PuyoGame
-from src.simone2026.mcts import MCTSConfig
-from src.simone2026.replay import ReplayConfig
-from src.simone2026.actor import Actor
+from src.simone_puyo.agents import ResNetConfig, ResNetAgent
+from src.simone_puyo.puyo import PuyoGame
+from src.simone_puyo.mcts import MCTSConfig
+from src.simone_puyo.replay import ReplayConfig
+from src.simone_puyo.actor import Actor
 
 
 if __name__ == '__main__':
-    mlp_config = MLPConfig(
-        n_common_hidden_layers=2,
-        n_common_neurons_per_layer=256,
-        n_value_hidden_layers=1,
-        n_value_neurons_per_layer=256,
-        n_policy_hidden_layers=1,
-        n_policy_neurons_per_layer=256,
+    resnet_config = ResNetConfig(
+        num_res_blocks=10,
+        num_filters=256,
+        kernel_size=3,
+        policy_filters=2,
+        policy_hidden_size=512,
+        value_filters=1,
+        value_hidden_size=512,
+        l2_regularization=1e-4,
+        use_batch_norm=True,
         learning_rate=1e-3,
         batch_size=1024
     )
 
-    mlp_agent = MLPAgent(name='testagent', config=mlp_config)
-    mlp_agent.build_model(summary=False)
+    resnet_agent = ResNetAgent(name='resnet_agent_1', config=resnet_config)
+    resnet_agent.build_model(summary=True)
 
     max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
         n_simulations=1000,
-        UCT_exploration_constant=4.,
+        UCT_exploration_constant=1.5,
         discount_factor=0.99
     )
 
@@ -38,10 +41,10 @@ if __name__ == '__main__':
         max_capacity=10000
     )
 
-    actor = Actor(mlp_agent, puyo_game, mlp_config, mcts_config, replay_config)
+    actor = Actor(resnet_agent, puyo_game, resnet_config, mcts_config, replay_config)
 
     # TRAINING / TEST CYCLES
-    n_cycles = 20
+    n_cycles = 2
     for i in range(n_cycles):
         print(f'CYCLE {i + 1}')
 
@@ -50,7 +53,7 @@ if __name__ == '__main__':
         for j in range(n_episodes):
             print(f'EPISODE {j + 1}')
             actor.collect_game()
-            if len(actor.replay_buffer.observations) >= mlp_config.batch_size:
+            if len(actor.replay_buffer.observations) >= resnet_config.batch_size:
                 actor.train_on_batch()
 
         # TEST
