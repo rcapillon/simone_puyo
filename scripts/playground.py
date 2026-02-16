@@ -21,7 +21,7 @@ if __name__ == '__main__':
         value_hidden_size=256,
         l2_regularization=1e-4,
         use_batch_norm=True,
-        learning_rate=1e-3,
+        learning_rate=5e-5,
         batch_size=64
     )
 
@@ -45,7 +45,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 15
+    n_cycles = 5
     buffer_min_length = 1000
 
     t0 = time()
