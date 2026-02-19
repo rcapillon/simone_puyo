@@ -53,8 +53,8 @@ if __name__ == '__main__':
         print(f'CYCLE {i + 1}')
 
         # SAMPLE COLLECTION AND TRAINING LOOP
-        episode_batch = 10
-        for j in range(episode_batch):
+        episode_batches = 10
+        for j in range(episode_batches):
             print(f'EPISODE BATCH {j + 1}')
             actor.collect_games_parallel(n_cpu=n_cpu)
             if (len(actor.replay_buffer.observations) >= resnet_config.batch_size
