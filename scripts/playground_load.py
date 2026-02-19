@@ -21,8 +21,8 @@ if __name__ == '__main__':
         value_hidden_size=512,
         l2_regularization=1e-4,
         use_batch_norm=True,
-        learning_rate=5e-5,
-        batch_size=64
+        learning_rate=5e-4,
+        batch_size=128
     )
 
     resnet_agent = ResNetAgent(name='resnet_agent_1', config=resnet_config)
@@ -47,8 +47,9 @@ if __name__ == '__main__':
     print(f'Replay Buffer loaded: size {len(actor.replay_buffer.observations)}.')
 
     # TRAINING / TEST CYCLES
-    n_cpu = 4
-    n_cycles = 55  # 3 cycles take a little less than 1 hour
+    n_cpu = 6
+    n_cycles = 50
+    episode_batches = 10
     buffer_min_length = 1000
 
     t0 = time()
@@ -56,10 +57,10 @@ if __name__ == '__main__':
         print(f'CYCLE {i + 1}')
 
         # SAMPLE COLLECTION AND TRAINING LOOP
-        episode_batches = 10
         for j in range(episode_batches):
             print(f'EPISODE BATCH {j + 1}')
-            actor.collect_games_parallel(n_cpu=n_cpu)
+            rewards = actor.collect_games_parallel(n_cpu=n_cpu)
+            print(f'Average reward: {np.mean(rewards)}')
             if (len(actor.replay_buffer.observations) >= resnet_config.batch_size
                     and len(actor.replay_buffer.observations) >= buffer_min_length):
                 actor.train_on_batch()
