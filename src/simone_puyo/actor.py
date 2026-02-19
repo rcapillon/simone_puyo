@@ -82,6 +82,8 @@ class Actor:
             self.replay_buffer.trim_buffer()
             rewards.append(reward)
 
+        return rewards
+
     def train_on_batch(self, epochs=1, verbose=2):
         """
         train agent for a single step from a random sample batch
