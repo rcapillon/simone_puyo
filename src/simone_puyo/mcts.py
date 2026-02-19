@@ -117,19 +117,20 @@ def backpropagate(node):
         parent = parent.parent
 
 
-def run_mcts(agent, game, config=MCTSConfig()):
+def run_mcts(agent, game, config=MCTSConfig(), root=None):
     """
     perform multiple MCTS simulations, returning root node value and MCTS-based policy
     """
-    root = Node(
-        prior=None,
-        reward=0.,
-        done=False,
-        agent=agent,
-        game=game,
-        parent=None,
-        config=config
-    )
+    if root is None:
+        root = Node(
+            prior=None,
+            reward=0.,
+            done=False,
+            agent=agent,
+            game=game,
+            parent=None,
+            config=config
+        )
 
     for _ in range(config.n_simulations):
         node = root
@@ -152,4 +153,7 @@ def run_mcts(agent, game, config=MCTSConfig()):
         policy[index] += v.N
     policy /= root.N
 
-    return value, policy
+    new_root = root
+    new_root.parent = None
+
+    return value, policy, new_root

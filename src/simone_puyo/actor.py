@@ -1,7 +1,7 @@
 import numpy as np
 from multiprocessing import Pool
 
-from .mcts import run_mcts
+from .mcts import Node, run_mcts
 from .utils import random_argmax_in_array
 from .replay import ReplayBuffer, EpisodeBuffer
 from .puyo import GAMEOVER_REWARD
@@ -39,12 +39,22 @@ class Actor:
         episode_buffer = EpisodeBuffer(self.mcts_config.discount_factor)
         observation = self.reset_game()
 
+        root = Node(
+            prior=None,
+            reward=0.,
+            done=False,
+            agent=self.agent,
+            game=self.game,
+            parent=None,
+            config=self.mcts_config
+        )
+
         step = 1
         total_reward = 0.
         done = False
         while not done:
             legal_actions = self.game.get_legal_actions()
-            _, policy = run_mcts(self.agent, self.game, self.mcts_config)
+            _, policy, new_root = run_mcts(self.agent, self.game, self.mcts_config, root=root)
             random_index = random_argmax_in_array(policy[legal_actions])
             action = legal_actions[random_index]
 
@@ -53,6 +63,7 @@ class Actor:
 
             episode_buffer.store_transition(observation, reward, policy)
             observation = next_observation
+            root = new_root
 
             step += 1
 
