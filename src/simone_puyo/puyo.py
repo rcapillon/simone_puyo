@@ -5,13 +5,13 @@ import matplotlib.colors
 
 
 # negative reward when action results in game over
-GAMEOVER_REWARD = -1.
+GAMEOVER_REWARD = -100.
 
 # reward function for chains 1 through 19
 reward_dict = {
 }
 for i in range(20):
-    reward_dict[int(i)] = i**2 * 20 / 19**2
+    reward_dict[int(i)] = i**2.5
 
 # color parameters for plotting game boards
 cvals = [0, 1, 2, 3, 4, 5]
@@ -454,7 +454,6 @@ class PuyoGame:
         gameover = self.state.board.check_gameover()
         self.n_step += 1
 
-        # Compute reward with optional shaping
         reward = GAMEOVER_REWARD if gameover else reward_dict[chain_length]
 
         done = True if self.n_step >= self.max_moves or gameover else False

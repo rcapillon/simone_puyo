@@ -72,13 +72,15 @@ class Actor:
                 terminal_reward = GAMEOVER_REWARD
                 episode_buffer.store_terminal_state(observation, terminal_reward)
 
-        return episode_buffer
+        return episode_buffer, total_reward
 
     def collect_games_parallel(self, n_cpu=1):
+        rewards = []
         pool = Pool(n_cpu)
-        for episode_buffer in pool.starmap(self.collect_game, [()] * n_cpu):
+        for episode_buffer, reward in pool.starmap(self.collect_game, [()] * n_cpu):
             self.replay_buffer.add_episode(episode_buffer)
             self.replay_buffer.trim_buffer()
+            rewards.append(reward)
 
     def train_on_batch(self, epochs=1, verbose=2):
         """
