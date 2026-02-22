@@ -33,9 +33,12 @@ if __name__ == '__main__':
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=1000,
+        n_simulations=200,
         UCT_exploration_constant=1.5,
-        discount_factor=0.99
+        discount_factor=0.99,
+        dirichlet_alpha=0.3,
+        dirichlet_epsilon=0.25,
+        base_temperature=1.
     )
 
     replay_config = ReplayConfig(

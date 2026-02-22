@@ -1,6 +1,4 @@
-import sys
 import numpy as np
-np.set_printoptions(threshold=sys.maxsize)
 from tqdm import tqdm
 from time import time
 import matplotlib.pyplot as plt
@@ -34,9 +32,12 @@ if __name__ == '__main__':
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=1000,
+        n_simulations=200,
         UCT_exploration_constant=1.5,
-        discount_factor=0.99
+        discount_factor=0.99,
+        dirichlet_alpha=0.3,
+        dirichlet_epsilon=0.25,
+        base_temperature=1.
     )
 
     replay_config = ReplayConfig(
@@ -47,7 +48,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 1
+    n_cycles = 4
     episode_batches = 10
     buffer_min_length = 1000
 

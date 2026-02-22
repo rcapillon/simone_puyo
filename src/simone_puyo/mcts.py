@@ -14,8 +14,13 @@ class MCTSConfig:
     UCT_exploration_constant: float = 4.
     discount_factor: float = 0.97
 
+    dirichlet_alpha: float = 0.3
+    dirichlet_epsilon: float = 0.25
+    base_temperature: float = 1.0  # τ=1 exploration, τ→0 greedy
+
     def __post_init__(self):
-        pass
+        if self.base_temperature <= 0.1:
+            self.base_temperature = 0.1
 
 
 class Node:
@@ -115,7 +120,18 @@ def backpropagate(node):
         parent = parent.parent
 
 
-def run_mcts(agent, game, config=MCTSConfig(), root=None):
+def get_temperature(step_number, training=True, config=MCTSConfig()):
+    if not training:
+        return 0.  # greedy en évaluation
+    else:
+        return config.base_temperature
+    # if step_number < 10:
+    #     return config.base_temperature
+    # else:
+    #     return 0.1   # quasi-greedy en fin de partie
+
+
+def run_mcts(agent, game, step_number, config=MCTSConfig(), root=None, training=True):
     """
     perform multiple MCTS simulations, returning root node value and MCTS-based policy
     """
@@ -128,6 +144,14 @@ def run_mcts(agent, game, config=MCTSConfig(), root=None):
             parent=None,
             config=config
         )
+
+    if root.policy is not None:
+        noise = np.random.dirichlet([config.dirichlet_alpha] * len(root.legal_actions))
+        for i, action in enumerate(root.legal_actions):
+            root.policy[action] = (
+                    (1 - config.dirichlet_epsilon) * root.policy[action]
+                    + config.dirichlet_epsilon * noise[i]
+            )
 
     for _ in range(config.n_simulations):
         node = root
@@ -144,11 +168,21 @@ def run_mcts(agent, game, config=MCTSConfig(), root=None):
         backpropagate(node)
 
     value = root.get_value()
-    policy = np.zeros((22, ))
+
+    # Calcul de la policy avec température
+    visit_counts = np.zeros((22,))
     for k, v in root.children.items():
         index = k[0]
-        policy[index] += v.N
-    policy /= root.N
+        visit_counts[index] += v.N
+
+    temperature = get_temperature(step_number, training=training, config=config)
+
+    if temperature < 0.01:  # cas greedy, évite division par zéro
+        policy = np.zeros((22,))
+        policy[np.argmax(visit_counts)] = 1.0
+    else:
+        counts_temp = visit_counts ** (1 / temperature)
+        policy = counts_temp / counts_temp.sum()
 
     new_root = root
     new_root.parent = None

@@ -53,7 +53,7 @@ class Actor:
         done = False
         while not done:
             legal_actions = self.game.get_legal_actions()
-            _, policy, new_root = run_mcts(self.agent, self.game, self.mcts_config, root=root)
+            _, policy, new_root = run_mcts(self.agent, self.game, self.mcts_config, step_number, root=root)
             random_index = random_argmax_in_array(policy[legal_actions])
             action = legal_actions[random_index]
 
