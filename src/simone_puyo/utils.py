@@ -37,6 +37,7 @@ def random_argmax_in_array(arr):
     for i, v in enumerate(arr):
         if v > max_v:
             list_max_index = [i]
+            max_v = v
         elif v == max_v:
             list_max_index.append(i)
 
