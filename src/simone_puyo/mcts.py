@@ -145,7 +145,7 @@ def run_mcts(agent, game, step_number, config=MCTSConfig(), root=None, training=
             config=config
         )
 
-    if root.policy is not None:
+    if root.policy is not None and training:
         noise = np.random.dirichlet([config.dirichlet_alpha] * len(root.legal_actions))
         for i, action in enumerate(root.legal_actions):
             root.policy[action] = (
