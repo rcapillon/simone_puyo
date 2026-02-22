@@ -1,4 +1,6 @@
+import sys
 import numpy as np
+np.set_printoptions(threshold=sys.maxsize)
 from tqdm import tqdm
 from time import time
 import matplotlib.pyplot as plt
@@ -21,8 +23,8 @@ if __name__ == '__main__':
         value_hidden_size=512,
         l2_regularization=1e-4,
         use_batch_norm=True,
-        learning_rate=5e-4,
-        batch_size=128
+        learning_rate=1e-3,
+        batch_size=64
     )
 
     resnet_agent = ResNetAgent(name='resnet_agent_1', config=resnet_config)
@@ -44,8 +46,8 @@ if __name__ == '__main__':
     actor = Actor(resnet_agent, puyo_game, resnet_config, mcts_config, replay_config)
 
     # TRAINING / TEST CYCLES
-    n_cpu = 6
-    n_cycles = 50
+    n_cpu = 4
+    n_cycles = 1
     episode_batches = 10
     buffer_min_length = 1000
 
@@ -55,12 +57,15 @@ if __name__ == '__main__':
 
         # SAMPLE COLLECTION AND TRAINING LOOP
         for j in range(episode_batches):
+            t_episode_0 = time()
             print(f'EPISODE BATCH {j + 1}')
             rewards = actor.collect_games_parallel(n_cpu=n_cpu)
             print(f'Average reward: {np.mean(rewards)}')
             if (len(actor.replay_buffer.observations) >= resnet_config.batch_size
                     and len(actor.replay_buffer.observations) >= buffer_min_length):
                 actor.train_on_batch()
+            t_episode_1 = time()
+            print(f'Episode batch took: {t_episode_1 - t_episode_0} seconds.')
 
         # TEST
         print('TEST GAMES')

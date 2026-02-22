@@ -21,8 +21,8 @@ if __name__ == '__main__':
         value_hidden_size=512,
         l2_regularization=1e-4,
         use_batch_norm=True,
-        learning_rate=5e-4,
-        batch_size=128
+        learning_rate=1e-3,
+        batch_size=64
     )
 
     resnet_agent = ResNetAgent(name='resnet_agent_1', config=resnet_config)
@@ -47,8 +47,8 @@ if __name__ == '__main__':
     print(f'Replay Buffer loaded: size {len(actor.replay_buffer.observations)}.')
 
     # TRAINING / TEST CYCLES
-    n_cpu = 6
-    n_cycles = 50
+    n_cpu = 4
+    n_cycles = 1  # 1 cycle takes roughly 3 hours
     episode_batches = 10
     buffer_min_length = 1000
 
