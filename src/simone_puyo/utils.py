@@ -13,6 +13,7 @@ def random_max_in_dict(d):
         if v > max_v:
             list_max_action = [k[0]]
             list_max_chance_code = [k[1]]
+            max_v = v
         elif v == max_v:
             list_max_action.append(k[0])
             list_max_chance_code.append(k[1])
