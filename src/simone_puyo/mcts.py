@@ -22,7 +22,7 @@ class Node:
     """
     Class for node in the tree search
     """
-    def __init__(self, prior, reward, done, agent, game, parent=None, config=MCTSConfig()):
+    def __init__(self, reward, done, agent, game, parent=None, config=MCTSConfig()):
         self.config = config
 
         self.agent = agent
@@ -30,7 +30,6 @@ class Node:
 
         self.legal_actions = self.game.get_legal_actions()
 
-        self.prior = prior
         self.N = 0
         self.value_sum = 0.
         self.reward = reward
@@ -89,7 +88,6 @@ class Node:
             new_game.state.queue.insert_last_in_queue(chance_code)
 
             self.children[key] = Node(
-                prior=self.policy[action],
                 reward=reward,
                 done=done,
                 agent=self.agent,
@@ -123,7 +121,6 @@ def run_mcts(agent, game, config=MCTSConfig(), root=None):
     """
     if root is None:
         root = Node(
-            prior=None,
             reward=0.,
             done=False,
             agent=agent,

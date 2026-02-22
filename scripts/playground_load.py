@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 1  # 1 cycle takes roughly 3 hours
+    n_cycles = 1
     episode_batches = 10
     buffer_min_length = 1000
 
@@ -58,12 +58,15 @@ if __name__ == '__main__':
 
         # SAMPLE COLLECTION AND TRAINING LOOP
         for j in range(episode_batches):
+            t_episode_0 = time()
             print(f'EPISODE BATCH {j + 1}')
             rewards = actor.collect_games_parallel(n_cpu=n_cpu)
             print(f'Average reward: {np.mean(rewards)}')
             if (len(actor.replay_buffer.observations) >= resnet_config.batch_size
                     and len(actor.replay_buffer.observations) >= buffer_min_length):
                 actor.train_on_batch()
+            t_episode_1 = time()
+            print(f'Episode batch took: {t_episode_1 - t_episode_0} seconds.')
 
         # TEST
         print('TEST GAMES')

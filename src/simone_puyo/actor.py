@@ -40,7 +40,6 @@ class Actor:
         observation = self.reset_game()
 
         root = Node(
-            prior=None,
             reward=0.,
             done=False,
             agent=self.agent,
