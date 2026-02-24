@@ -49,11 +49,11 @@ if __name__ == '__main__':
 
     agent.build_model(summary=True)
 
-    max_moves = 10
+    max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=100,
+        n_simulations=1000,
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.3,
@@ -68,7 +68,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 4
+    n_cycles = 2
     episode_batches = 10
     buffer_min_length = 1000
 
@@ -90,13 +90,16 @@ if __name__ == '__main__':
 
         # TEST
         print('TEST GAMES')
-        n_test_games = 100
-        test_rewards = []
+        n_test_games = 1000
+        test_best_rewards = []
+        test_total_rewards = []
         for _ in tqdm(range(n_test_games)):
-            best_reward = actor.play_test_game()
-            test_rewards.append(best_reward)
-        average_test_reward = np.mean(test_rewards)
-        actor.agent.test_scores.append(average_test_reward)
+            best_reward, total_reward = actor.play_test_game()
+            test_best_rewards.append(best_reward)
+            test_total_rewards.append(total_reward)
+        average_test_best_reward = np.mean(test_best_rewards)
+        average_test_total_reward = np.mean(test_total_rewards)
+        actor.agent.test_scores.append((average_test_best_reward, average_test_total_reward))
     t1 = time()
 
     print(f'Time elapsed: {t1 - t0} seconds.')
@@ -116,8 +119,12 @@ if __name__ == '__main__':
 
     # test plot
     _, ax = plt.subplots()
-    ax.plot(actor.agent.test_scores)
+    test_best_rewards = [test_scores[0] for test_scores in actor.agent.test_scores]
+    test_total_rewards = [test_scores[1] for test_scores in actor.agent.test_scores]
+    ax.plot(test_best_rewards, label='best reward')
+    ax.plot(test_total_rewards, label='total reward')
     ax.grid()
+    ax.legend()
     ax.set_xlabel('Test cycles')
     ax.set_ylabel('Average reward')
     ax.set_title('Average test rewards (no MCTS)')
