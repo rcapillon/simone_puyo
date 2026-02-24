@@ -3,7 +3,7 @@ from tqdm import tqdm
 from time import time
 import matplotlib.pyplot as plt
 
-from src.simone_puyo.agents import ResNetConfig, ResNetAgent
+from src.simone_puyo.agents import ResNetConfig, ResNetAgent, MLPConfig, MLPAgent
 from src.simone_puyo.puyo import PuyoGame
 from src.simone_puyo.mcts import MCTSConfig
 from src.simone_puyo.replay import ReplayConfig
@@ -11,22 +11,43 @@ from src.simone_puyo.actor import Actor
 
 
 if __name__ == '__main__':
-    resnet_config = ResNetConfig(
-        num_res_blocks=10,
-        num_filters=256,
-        kernel_size=3,
-        policy_filters=2,
-        policy_hidden_size=512,
-        value_filters=1,
-        value_hidden_size=512,
-        l2_regularization=1e-4,
-        use_batch_norm=True,
-        learning_rate=1e-3,
-        batch_size=64
-    )
+    agent_type = 'mlp'
 
-    resnet_agent = ResNetAgent(name='resnet_agent_1', config=resnet_config)
-    resnet_agent.build_model(summary=True)
+    if agent_type == 'mlp':
+        agent_name = 'mlp_agent_1'
+        agent_config = MLPConfig(
+            n_common_hidden_layers=2,
+            n_common_neurons_per_layer=512,
+            n_value_hidden_layers=1,
+            n_value_neurons_per_layer=512,
+            n_policy_hidden_layers=1,
+            n_policy_neurons_per_layer=512,
+            learning_rate=1e-3,
+            batch_size=64
+        )
+        agent = MLPAgent(name=agent_name, config=agent_config)
+
+    elif agent_type == 'resnet':
+        agent_name = 'resnet_agent_1'
+        agent_config = ResNetConfig(
+            num_res_blocks=10,
+            num_filters=256,
+            kernel_size=3,
+            policy_filters=2,
+            policy_hidden_size=512,
+            value_filters=1,
+            value_hidden_size=512,
+            l2_regularization=1e-4,
+            use_batch_norm=True,
+            learning_rate=1e-3,
+            batch_size=64
+        )
+        agent = ResNetAgent(name=agent_name, config=agent_config)
+
+    else:
+        raise ValueError(f'Unknown agent type: {agent_type}')
+
+    agent.build_model(summary=True)
 
     max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
@@ -36,19 +57,18 @@ if __name__ == '__main__':
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.3,
-        dirichlet_epsilon=0.25,
-        base_temperature=1.
+        dirichlet_epsilon=0.25
     )
 
     replay_config = ReplayConfig(
-        max_capacity=100000
+        max_capacity=10000
     )
 
-    actor = Actor(resnet_agent, puyo_game, resnet_config, mcts_config, replay_config)
+    actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 10
+    n_cycles = 4
     episode_batches = 10
     buffer_min_length = 1000
 
@@ -62,7 +82,7 @@ if __name__ == '__main__':
             print(f'EPISODE BATCH {j + 1}')
             rewards = actor.collect_games_parallel(n_cpu=n_cpu)
             print(f'Average reward: {np.mean(rewards)}')
-            if (len(actor.replay_buffer.observations) >= resnet_config.batch_size
+            if (len(actor.replay_buffer.observations) >= agent_config.batch_size
                     and len(actor.replay_buffer.observations) >= buffer_min_length):
                 actor.train_on_batch()
             t_episode_1 = time()
