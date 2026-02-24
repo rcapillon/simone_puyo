@@ -106,24 +106,27 @@ class Actor:
 
         return best_reward
 
-    # def act(self, with_mcts=False):
-    #     """
-    #     play a single move in the current game, with or without MCTS
-    #     """
-    #     legal_actions = self.game.get_legal_actions()
-    #
-    #     if with_mcts:
-    #         root = Node(
-    #             reward=0.,
-    #             done=False,
-    #             agent=self.agent,
-    #             game=self.game,
-    #             parent=None,
-    #             config=self.mcts_config
-    #         )
-    #         value, policy, _ = run_mcts(self.agent, self.game, 0, self.mcts_config, root=root, training=False)
-    #     else:
-    #         value, policy = self.agent(self.game.get_input())
-    #
-    #     _, reward, done = self.game.step(action)
+    def act(self, with_mcts=False):
+        """
+        play a single move in the current game, with or without MCTS
+        """
+        legal_actions = self.game.get_legal_actions()
 
+        if with_mcts:
+            root = Node(
+                reward=0.,
+                done=False,
+                agent=self.agent,
+                game=self.game,
+                parent=None,
+                config=self.mcts_config
+            )
+            value, policy, _ = run_mcts(self.agent, self.game, 0, self.mcts_config, root=root, training=False)
+        else:
+            value, policy = self.agent(self.game.get_input())
+
+        random_index = random_argmax_in_array(policy[legal_actions])
+        action = legal_actions[random_index]
+        _, reward, done = self.game.step(action)
+
+        return reward, done
