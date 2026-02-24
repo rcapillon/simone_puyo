@@ -112,6 +112,7 @@ class Actor:
         play a complete episode without MCTS, used for evaluating the agent
         """
         best_reward = -np.inf
+        total_reward = 0.
 
         observation = self.reset_game()
 
@@ -124,9 +125,10 @@ class Actor:
             action = legal_actions[random_index]
 
             observation, reward, done = self.game.step(action)
+            total_reward += reward
             if reward > best_reward:
                 best_reward = reward
 
             step += 1
 
-        return best_reward
+        return best_reward, total_reward
