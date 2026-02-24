@@ -58,8 +58,18 @@ class Actor:
             action = legal_actions[random_index]
             new_tsumo = [int(p) for p in self.game.state.queue.queue[2, :]]
             chance_code = get_chance_code(new_tsumo)
-            new_root = root.children[(action, chance_code)]
-            new_root.parent = None
+            try:
+                new_root = root.children[(action, chance_code)]
+                new_root.parent = None
+            except KeyError:
+                new_root = Node(
+                    reward=0.,
+                    done=False,
+                    agent=self.agent,
+                    game=self.game,
+                    parent=None,
+                    config=self.mcts_config
+                )
 
             next_observation, reward, done = self.game.step(action)
             total_reward += reward
