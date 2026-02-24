@@ -12,7 +12,7 @@ authors = [
 ]
 description = "Puyo Puyo deep learning AI"
 readme = "README.md"
-requires-python = "=3.12"
+requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
@@ -21,7 +21,8 @@ dependencies = [
     "scipy >= 1.17.0",
     "matplotlib >= 3.10.8",
     "tensorflow >= 2.20.0",
-    "tqdm >= 4.67.3"
+    "tqdm >= 4.67.3",
+    "streamlit >= 1.54.0"
 ]
 
 [project.urls]
