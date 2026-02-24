@@ -50,11 +50,11 @@ if __name__ == '__main__':
     agent.load_model('../saved_agents', summary=False)
     print('Agent loaded.')
 
-    max_moves = 20
+    max_moves = 10
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=200,
+        n_simulations=100,
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.3,
@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 10
+    n_cycles = 45
     episode_batches = 10
     buffer_min_length = 1000
 
