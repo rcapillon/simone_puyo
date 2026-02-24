@@ -39,21 +39,12 @@ class Actor:
         episode_buffer = EpisodeBuffer(self.mcts_config.discount_factor)
         observation = self.reset_game()
 
-        root = Node(
-            reward=0.,
-            done=False,
-            agent=self.agent,
-            game=self.game,
-            parent=None,
-            config=self.mcts_config
-        )
-
         step = 1
         total_reward = 0.
         done = False
         while not done:
             legal_actions = self.game.get_legal_actions()
-            _, policy, new_root = run_mcts(self.agent, self.game, step, self.mcts_config, root=root, training=True)
+            _, policy = run_mcts(self.agent, self.game, step, self.mcts_config, training=True)
             random_index = random_argmax_in_array(policy[legal_actions])
             action = legal_actions[random_index]
 
@@ -62,7 +53,6 @@ class Actor:
 
             episode_buffer.store_transition(observation, reward, policy)
             observation = next_observation
-            root = new_root
 
             step += 1
 
@@ -115,3 +105,25 @@ class Actor:
             step += 1
 
         return best_reward
+
+    # def act(self, with_mcts=False):
+    #     """
+    #     play a single move in the current game, with or without MCTS
+    #     """
+    #     legal_actions = self.game.get_legal_actions()
+    #
+    #     if with_mcts:
+    #         root = Node(
+    #             reward=0.,
+    #             done=False,
+    #             agent=self.agent,
+    #             game=self.game,
+    #             parent=None,
+    #             config=self.mcts_config
+    #         )
+    #         value, policy, _ = run_mcts(self.agent, self.game, 0, self.mcts_config, root=root, training=False)
+    #     else:
+    #         value, policy = self.agent(self.game.get_input())
+    #
+    #     _, reward, done = self.game.step(action)
+

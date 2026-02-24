@@ -131,19 +131,18 @@ def get_temperature(step_number, training=True, config=MCTSConfig()):
     #     return 0.1   # quasi-greedy en fin de partie
 
 
-def run_mcts(agent, game, step_number, config=MCTSConfig(), root=None, training=True):
+def run_mcts(agent, game, step_number, config=MCTSConfig(), training=True):
     """
     perform multiple MCTS simulations, returning root node value and MCTS-based policy
     """
-    if root is None:
-        root = Node(
-            reward=0.,
-            done=False,
-            agent=agent,
-            game=game,
-            parent=None,
-            config=config
-        )
+    root = Node(
+        reward=0.,
+        done=False,
+        agent=agent,
+        game=game,
+        parent=None,
+        config=config
+    )
 
     if root.policy is not None and training:
         noise = np.random.dirichlet([config.dirichlet_alpha] * len(root.legal_actions))
@@ -184,7 +183,4 @@ def run_mcts(agent, game, step_number, config=MCTSConfig(), root=None, training=
         counts_temp = visit_counts ** (1 / temperature)
         policy = counts_temp / counts_temp.sum()
 
-    new_root = root
-    new_root.parent = None
-
-    return value, policy, new_root
+    return value, policy
