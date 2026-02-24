@@ -232,7 +232,7 @@ def run_mcts(agent, game, config=MCTSConfig(), root=None, training=True):
                 UCT_scores = node.calculate_UCT_scores()
                 # UCT_scores is now keyed by action only
                 action = max(UCT_scores, key=UCT_scores.__getitem__)
-                # Draw chance_code uniformly — nature's move
+                # Draw chance_code uniformly
                 chance_code = int(np.random.randint(16))
                 node = node.get_or_create_child(action, chance_code)
                 if node.N == 0:
