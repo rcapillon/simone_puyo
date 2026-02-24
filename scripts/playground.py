@@ -112,7 +112,7 @@ if __name__ == '__main__':
     ax.set_xlabel('Training steps')
     ax.set_ylabel('Loss')
     ax.set_title('Training losses')
-    plt.savefig('./testagent_training_losses.png')
+    plt.savefig('./' + agent_name + '_training_losses.png')
 
     # test plot
     _, ax = plt.subplots()
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     ax.set_xlabel('Test cycles')
     ax.set_ylabel('Average reward')
     ax.set_title('Average test rewards (no MCTS)')
-    plt.savefig('./testagent_test_rewards.png')
+    plt.savefig('./' + agent_name + '_test_rewards.png')
 
     # save
     replay_path_to_dir = '../saved_data/'

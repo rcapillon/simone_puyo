@@ -16,12 +16,12 @@ if __name__ == '__main__':
     if agent_type == 'mlp':
         agent_name = 'mlp_agent_1'
         agent_config = MLPConfig(
-            n_common_hidden_layers=1,
-            n_common_neurons_per_layer=256,
+            n_common_hidden_layers=2,
+            n_common_neurons_per_layer=512,
             n_value_hidden_layers=1,
-            n_value_neurons_per_layer=256,
+            n_value_neurons_per_layer=512,
             n_policy_hidden_layers=1,
-            n_policy_neurons_per_layer=256,
+            n_policy_neurons_per_layer=512,
             learning_rate=1e-3,
             batch_size=64
         )
@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 1
+    n_cycles = 10
     episode_batches = 10
     buffer_min_length = 1000
 
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     ax.set_xlabel('Training steps')
     ax.set_ylabel('Loss')
     ax.set_title('Training losses')
-    plt.savefig('./testagent_training_losses.png')
+    plt.savefig('./' + agent_name + '_training_losses.png')
 
     # test plot
     _, ax = plt.subplots()
@@ -124,7 +124,7 @@ if __name__ == '__main__':
     ax.set_xlabel('Test cycles')
     ax.set_ylabel('Average reward')
     ax.set_title('Average test rewards (no MCTS)')
-    plt.savefig('./testagent_test_rewards.png')
+    plt.savefig('./' + agent_name + '_test_rewards.png')
 
     # save
     replay_path_to_dir = '../saved_data/'
