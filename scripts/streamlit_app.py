@@ -13,6 +13,10 @@ import io
 import pickle
 import sys
 import numpy as np
+
+# Required for pickle to deserialize GameReplay / StepRecord objects
+# (pickle stores the class path as __main__ when saved from play_and_save.py)
+from play_and_save import GameReplay, StepRecord  # noqa: F401
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt

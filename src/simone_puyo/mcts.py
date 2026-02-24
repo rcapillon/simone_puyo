@@ -17,6 +17,15 @@ class MCTSConfig:
     dirichlet_alpha: float = 0.3
     dirichlet_epsilon: float = 0.25
 
+    # Temperature schedule based on board fill ratio
+    # tau_max  : temperature applied on an empty board (fill = 0)
+    # tau_min  : temperature applied on a full board   (fill = 1)
+    # The actual temperature is linearly interpolated between the two
+    # based on the current board fill ratio.
+    # Set tau_max = tau_min = 1.0 to disable (original behaviour).
+    tau_max: float = 2.
+    tau_min: float = 0.5
+
     def __post_init__(self):
         pass
 
@@ -118,9 +127,69 @@ def backpropagate(node):
         parent = parent.parent
 
 
+def compute_board_fill_ratio(game):
+    """
+    Returns the fraction of non-empty cells on the board (rows 1-12, ignoring
+    the hidden top row 0 used for game-over detection).
+    Board is 13 rows × 6 cols = 78 cells total, playable area = 12 × 6 = 72.
+    """
+    playable_board = game.state.board.num_board[1:, :]   # rows 1–12, shape (12, 6)
+    n_filled = int(np.count_nonzero(playable_board))
+    return n_filled / 72.
+
+
+def temperature_from_fill(fill_ratio, tau_max, tau_min):
+    """
+    Linearly interpolates temperature between tau_max (empty board) and
+    tau_min (full board) based on current fill ratio.
+
+        tau = tau_max - fill_ratio * (tau_max - tau_min)
+
+    Examples with tau_max=2.0, tau_min=0.5:
+        fill=0.00  → tau=2.00  (very diverse policy, board empty)
+        fill=0.25  → tau=1.625
+        fill=0.50  → tau=1.25
+        fill=0.75  → tau=0.875
+        fill=1.00  → tau=0.50  (sharper policy, board dense)
+    """
+    return tau_max - fill_ratio * (tau_max - tau_min)
+
+
+def apply_temperature(visit_counts, temperature):
+    """
+    Converts raw visit counts to a policy using a temperature parameter.
+
+        policy[a]  ∝  N[a] ^ (1 / temperature)
+
+    Special cases:
+        temperature → 0  :  deterministic argmax (one-hot on most-visited action)
+        temperature = 1  :  proportional to visit counts (original behaviour)
+        temperature > 1  :  flatter distribution, more diverse
+    """
+    if temperature < 1e-6:
+        # Greedy: one-hot on the most visited action
+        policy = np.zeros_like(visit_counts, dtype=np.float64)
+        policy[np.argmax(visit_counts)] = 1.0
+        return policy
+
+    counts_temp = visit_counts ** (1.0 / temperature)
+    total = counts_temp.sum()
+    if total == 0:
+        # Fallback: uniform over visited actions
+        mask = visit_counts > 0
+        policy = mask.astype(np.float64) / mask.sum()
+        return policy
+
+    return counts_temp / total
+
+
 def run_mcts(agent, game, config=MCTSConfig(), root=None, training=True):
     """
-    perform multiple MCTS simulations, returning root node value and MCTS-based policy
+    Perform multiple MCTS simulations, returning root node value and MCTS-based policy.
+
+    The output policy is computed from visit counts with a temperature that
+    decreases as the board fills up (config.tau_max → config.tau_min).
+    Set tau_max = tau_min = 1.0 to recover the original behaviour.
     """
     if root is None:
         root = Node(
@@ -154,11 +223,16 @@ def run_mcts(agent, game, config=MCTSConfig(), root=None, training=True):
                 is_leaf = True
         backpropagate(node)
 
-    value = root.get_value()
-    policy = np.zeros((22,))
+    # Aggregate visit counts across all children
+    visit_counts = np.zeros((22,))
     for k, v in root.children.items():
-        index = k[0]
-        policy[index] += v.N
-    policy = policy / policy.sum()
+        visit_counts[k[0]] += v.N
 
+    # Compute temperature from current board fill ratio
+    fill_ratio = compute_board_fill_ratio(game)
+    tau = temperature_from_fill(fill_ratio, config.tau_max, config.tau_min)
+
+    policy = apply_temperature(visit_counts, tau)
+
+    value = root.get_value()
     return value, policy, root

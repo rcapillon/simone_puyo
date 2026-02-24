@@ -57,7 +57,9 @@ if __name__ == '__main__':
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.3,
-        dirichlet_epsilon=0.25
+        dirichlet_epsilon=0.25,
+        tau_max=2.,
+        tau_min=0.5
     )
 
     replay_config = ReplayConfig(

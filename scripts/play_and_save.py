@@ -19,11 +19,11 @@ import matplotlib.pyplot as plt
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from src.simone_puyo.agents import ResNetConfig, ResNetAgent, MLPConfig, MLPAgent
-from src.simone_puyo.puyo import PuyoGame, GAMEOVER_REWARD, reward_dict
-from src.simone_puyo.mcts import MCTSConfig, Node, run_mcts
-from src.simone_puyo.utils import random_argmax_in_array
-from src.simone_puyo.puyo import get_chance_code
+from simone_puyo.agents import ResNetConfig, ResNetAgent, MLPConfig, MLPAgent
+from simone_puyo.puyo import PuyoGame, GAMEOVER_REWARD, reward_dict
+from simone_puyo.mcts import MCTSConfig, Node, run_mcts
+from simone_puyo.utils import random_argmax_in_array
+from simone_puyo.puyo import get_chance_code
 
 
 # ---------------------------------------------------------------------------
