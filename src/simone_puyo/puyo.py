@@ -192,7 +192,7 @@ class TsumoQueue:
         """
         Insert new puyo pair in the queue's last spot from chance code
         """
-        self.queue[2, :] = dict_chance_tsumos[code]
+        self.queue[2, :] = np.array(dict_chance_tsumos[code], dtype=np.int32)
         self.update_pairs()
 
     def update_onehot_queue(self):
