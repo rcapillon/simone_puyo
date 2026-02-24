@@ -118,18 +118,19 @@ def backpropagate(node):
         parent = parent.parent
 
 
-def run_mcts(agent, game, config=MCTSConfig(), training=True):
+def run_mcts(agent, game, config=MCTSConfig(), root=None, training=True):
     """
     perform multiple MCTS simulations, returning root node value and MCTS-based policy
     """
-    root = Node(
-        reward=0.,
-        done=False,
-        agent=agent,
-        game=game,
-        parent=None,
-        config=config
-    )
+    if root is None:
+        root = Node(
+            reward=0.,
+            done=False,
+            agent=agent,
+            game=game,
+            parent=None,
+            config=config
+        )
 
     if root.policy is not None and training:
         noise = np.random.dirichlet([config.dirichlet_alpha] * len(root.legal_actions))
@@ -160,4 +161,4 @@ def run_mcts(agent, game, config=MCTSConfig(), training=True):
         policy[index] += v.N
     policy = policy / policy.sum()
 
-    return value, policy
+    return value, policy, root
