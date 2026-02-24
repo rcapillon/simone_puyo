@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
 
-from .utils import random_max_in_dict
-
 
 @dataclass
 class MCTSConfig:
