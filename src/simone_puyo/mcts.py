@@ -72,20 +72,35 @@ class Node:
 
     def calculate_UCT_scores(self):
         """
-        calculates UCT scores (Upper Confidence bound applied to Trees) for all possible children nodes
+        Calculates UCT scores per action.
+
+        Q(a) is the average value over all chance_codes visited for that
+        action — an unbiased estimate of E_cc[V(s')] without requiring
+        explicit chance nodes.  UCT exploration is also aggregated at the
+        action level using the total visit count across all chance_codes.
         """
         UCT_scores = {}
 
         for action in self.legal_actions:
-            for chance_code in range(16):
-                try:
-                    child_N = self.children[(action, chance_code)].N
-                    U = self.config.UCT_exploration_constant * self.policy[action] * np.sqrt(self.N) / (child_N + 1)
-                    Q = self.children[(action, chance_code)].get_value()
-                except KeyError:
-                    U = self.config.UCT_exploration_constant * self.policy[action] * np.sqrt(self.N)
-                    Q = 0
-                UCT_scores[(action, chance_code)] = Q + U
+            # Collect all children reached via this action
+            visited_children = [
+                child for (a, _), child in self.children.items() if a == action
+            ]
+
+            if visited_children:
+                # Q = average value over observed chance outcomes
+                Q = np.mean([child.get_value() for child in visited_children])
+                # N_action = total visits through this action (all chance_codes)
+                N_action = sum(child.N for child in visited_children)
+            else:
+                Q = 0.
+                N_action = 0
+
+            U = (self.config.UCT_exploration_constant
+                 * self.policy[action]
+                 * np.sqrt(self.N) / (N_action + 1))
+
+            UCT_scores[action] = Q + U
 
         return UCT_scores
 
@@ -215,7 +230,10 @@ def run_mcts(agent, game, config=MCTSConfig(), root=None, training=True):
         while not is_leaf:
             if not node.is_done():
                 UCT_scores = node.calculate_UCT_scores()
-                action, chance_code = random_max_in_dict(UCT_scores)
+                # UCT_scores is now keyed by action only
+                action = max(UCT_scores, key=UCT_scores.__getitem__)
+                # Draw chance_code uniformly — nature's move
+                chance_code = int(np.random.randint(16))
                 node = node.get_or_create_child(action, chance_code)
                 if node.N == 0:
                     is_leaf = True
