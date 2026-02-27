@@ -1,7 +1,7 @@
 import numpy as np
 from multiprocessing import Pool
 
-from .mcts import Node, run_mcts
+from .mcts_batched import Node, run_mcts
 from .utils import random_argmax_in_array
 from .replay import ReplayBuffer, EpisodeBuffer
 from .puyo import GAMEOVER_REWARD, get_chance_code

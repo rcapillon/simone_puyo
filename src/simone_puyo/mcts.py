@@ -251,4 +251,5 @@ def run_mcts(agent, game, config=MCTSConfig(), root=None, training=True):
     policy = apply_temperature(visit_counts, tau)
 
     value = root.get_value()
+
     return value, policy, root
