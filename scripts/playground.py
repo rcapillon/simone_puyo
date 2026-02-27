@@ -134,6 +134,16 @@ if __name__ == '__main__':
     ax.set_title('Average test rewards (no MCTS)')
     plt.savefig('./' + agent_name + '_test_rewards.png')
 
+    _, ax = plt.subplots()
+    test_best_rewards = [test_scores[0] for test_scores in actor.agent.test_scores]
+    ax.plot(test_best_rewards)
+    ax.grid()
+    ax.legend()
+    ax.set_xlabel('Test cycles')
+    ax.set_ylabel('Average reward')
+    ax.set_title('Average best reward per game (no MCTS)')
+    plt.savefig('./' + agent_name + '_test_best_rewards.png')
+
     # save
     replay_path_to_dir = '../saved_data/'
     agent_path_to_dir = '../saved_agents/'
