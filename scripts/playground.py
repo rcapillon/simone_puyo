@@ -30,13 +30,13 @@ if __name__ == '__main__':
     elif agent_type == 'resnet':
         agent_name = 'resnet_agent_1'
         agent_config = ResNetConfig(
-            num_res_blocks=6,
-            num_filters=128,
+            num_res_blocks=4,
+            num_filters=64,
             kernel_size=3,
             policy_filters=2,
-            policy_hidden_size=256,
+            policy_hidden_size=128,
             value_filters=1,
-            value_hidden_size=256,
+            value_hidden_size=128,
             l2_regularization=1e-4,
             use_batch_norm=True,
             learning_rate=1e-3,
