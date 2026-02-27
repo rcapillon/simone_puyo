@@ -72,7 +72,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 8
+    n_cycles = 6
     episode_batches = 10
     buffer_min_length = 1000
 

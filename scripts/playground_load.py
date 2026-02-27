@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 from src.simone_puyo.agents import ResNetConfig, ResNetAgent, MLPConfig, MLPAgent
 from src.simone_puyo.puyo import PuyoGame
-from src.simone_puyo.mcts import MCTSConfig
+from src.simone_puyo.mcts_batched import MCTSConfig
 from src.simone_puyo.replay import ReplayConfig
 from src.simone_puyo.actor import Actor
 
@@ -60,7 +60,9 @@ if __name__ == '__main__':
         dirichlet_alpha=0.3,
         dirichlet_epsilon=0.25,
         tau_max=2.,
-        tau_min=0.5
+        tau_min=0.5,
+        batch_size=32,
+        virtual_loss=1.
     )
 
     replay_config = ReplayConfig(
@@ -73,7 +75,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 8
+    n_cycles = 12
     episode_batches = 10
     buffer_min_length = 1000
 
