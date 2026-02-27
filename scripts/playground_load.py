@@ -11,7 +11,7 @@ from src.simone_puyo.actor import Actor
 
 
 if __name__ == '__main__':
-    agent_type = 'mlp'
+    agent_type = 'resnet'
 
     if agent_type == 'mlp':
         agent_name = 'mlp_agent_1'
@@ -30,13 +30,13 @@ if __name__ == '__main__':
     elif agent_type == 'resnet':
         agent_name = 'resnet_agent_1'
         agent_config = ResNetConfig(
-            num_res_blocks=10,
-            num_filters=256,
+            num_res_blocks=4,
+            num_filters=64,
             kernel_size=3,
             policy_filters=2,
-            policy_hidden_size=512,
+            policy_hidden_size=128,
             value_filters=1,
-            value_hidden_size=512,
+            value_hidden_size=128,
             l2_regularization=1e-4,
             use_batch_norm=True,
             learning_rate=1e-3,
@@ -73,7 +73,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 4
+    n_cycles = 8
     episode_batches = 10
     buffer_min_length = 1000
 
@@ -95,7 +95,7 @@ if __name__ == '__main__':
 
         # TEST
         print('TEST GAMES')
-        n_test_games = 1000
+        n_test_games = 100
         test_best_rewards = []
         test_total_rewards = []
         for _ in tqdm(range(n_test_games)):
