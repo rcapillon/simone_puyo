@@ -15,10 +15,10 @@ if __name__ == '__main__':
     with_mcts = True
 
     if agent_type == 'resnet':
-        agent = ResNetAgent(name=agent_type)
+        agent = ResNetAgent(name='resnet_agent_1')
         agent_config = ResNetConfig()
     elif agent_type == 'mlp':
-        agent = MLPAgent(name=agent_type)
+        agent = MLPAgent(name='mlp_agent_1')
         agent_config = MLPConfig()
     else:
         raise ValueError(f'Unknown agent type: {agent_type}')
@@ -28,13 +28,11 @@ if __name__ == '__main__':
     max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
-    n_simulations = 1000
+    n_simulations = 10
     mcts_config = MCTSConfig(
         n_simulations=n_simulations,
         UCT_exploration_constant=0.,
         discount_factor=0.99,
-        dirichlet_alpha=0.,
-        dirichlet_epsilon=0.,
         tau_max=0.,
         tau_min=0.,
         batch_size=32,
@@ -61,7 +59,7 @@ if __name__ == '__main__':
         while not done:
             legal_actions = actor.game.get_legal_actions()
             if with_mcts:
-                _, policy, root = run_mcts(actor.agent, actor.game, config=actor.mcts_config, root=root, training=True)
+                _, policy, root = run_mcts(actor.agent, actor.game, config=actor.mcts_config, root=root, training=False)
                 random_index = random_argmax_in_array(policy[legal_actions])
                 action = legal_actions[random_index]
                 new_tsumo = [int(p) for p in actor.game.state.queue.queue[2, :]]
@@ -73,8 +71,6 @@ if __name__ == '__main__':
                         chains.append(-1)
                     else:
                         chains.append(int(np.round(reward ** (1 / 2.5))))
-                else:
-                    chains.append(0.)
 
                 try:
                     new_root = root.children[(action, chance_code)]
@@ -103,8 +99,6 @@ if __name__ == '__main__':
                         chains.append(-1)
                     else:
                         chains.append(int(np.round(reward ** (1 / 2.5))))
-                else:
-                    chains.append(0.)
 
     fig, ax = plt.subplots(figsize=(14, 5))
     bins_edges = np.arange(-1.5, 19.6, 1)  # bords à -1.5, -0.5, 0.5, ..., 19.5
@@ -116,9 +110,12 @@ if __name__ == '__main__':
 
     ax.set_xlabel("Chain length", fontsize=12)
     ax.set_ylabel("Probability", fontsize=12)
-    ax.set_title(f'Histogram of chains by {agent_type} during {n_games} games', fontsize=13)
+    ax.set_title(f'Histogram of chains by {agent_type} during {n_games} games (mcts: {with_mcts})', fontsize=13)
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{y:.0%}"))
     ax.set_xlim(-2, 20)
 
     plt.tight_layout()
-    plt.savefig("./chain_histogram.png", dpi=150)
+    if with_mcts:
+        plt.savefig("./chain_histogram_with_mcts.png", dpi=150)
+    else:
+        plt.savefig("./chain_histogram_witout_mcts.png", dpi=150)
