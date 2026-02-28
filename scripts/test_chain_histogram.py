@@ -28,7 +28,7 @@ if __name__ == '__main__':
     max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
-    n_simulations = 10
+    n_simulations = 1000
     mcts_config = MCTSConfig(
         n_simulations=n_simulations,
         UCT_exploration_constant=0.,
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
 
     chains = []
-    n_games = 10
+    n_games = 100
     for i in tqdm(range(n_games)):
         observation = actor.reset_game()
         root = Node(
