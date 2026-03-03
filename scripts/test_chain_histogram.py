@@ -69,7 +69,9 @@ if __name__ == '__main__':
                     if reward == GAMEOVER_REWARD:
                         chains.append(-1)
                     else:
-                        chains.append(int(np.round(reward ** (1 / 2.5))))
+                        chains.append(int(np.round(
+                            ((reward + 1) ** 2 - 1) ** (1 / 2.5)))
+                        )
 
                 try:
                     new_root = root.children[(action, chance_code)]
