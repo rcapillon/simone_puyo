@@ -1,7 +1,9 @@
+import os
 import numpy as np
 from tqdm import tqdm
 from time import time
 import matplotlib.pyplot as plt
+import pickle
 
 from src.simone_puyo.agents import ResNetConfig, ResNetAgent, MLPConfig, MLPAgent
 from src.simone_puyo.puyo import PuyoGame
@@ -11,7 +13,7 @@ from src.simone_puyo.actor import Actor
 
 
 if __name__ == '__main__':
-    agent_type = 'resnet'
+    agent_type = 'mlp'
 
     if agent_type == 'mlp':
         agent_name = 'mlp_agent_1'
@@ -59,8 +61,8 @@ if __name__ == '__main__':
         discount_factor=0.99,
         dirichlet_alpha=0.3,
         dirichlet_epsilon=0.25,
-        tau_max=2.,
-        tau_min=0.5,
+        tau_max=1.,
+        tau_min=1.,
         batch_size=32,
         virtual_loss=1.
     )
@@ -75,9 +77,12 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 16
+    n_cycles = 4
     episode_batches = 10
     buffer_min_length = 1000
+
+    with open(os.path.join('../saved_data/', str(agent_name) + '_collected_rewards.pkl'), 'rb') as f1:
+        collected_rewards = pickle.load(f1)
 
     t0 = time()
     for i in range(n_cycles):
@@ -88,6 +93,7 @@ if __name__ == '__main__':
             t_episode_0 = time()
             print(f'EPISODE BATCH {j + 1}')
             rewards = actor.collect_games_parallel(n_cpu=n_cpu)
+            collected_rewards.append(rewards)
             print(f'Average reward: {np.mean(rewards)}')
             if (len(actor.replay_buffer.observations) >= agent_config.batch_size
                     and len(actor.replay_buffer.observations) >= buffer_min_length):
@@ -147,8 +153,18 @@ if __name__ == '__main__':
     ax.set_title('Average best reward per game (no MCTS)')
     plt.savefig('./' + agent_name + '_test_best_rewards.png')
 
+    _, ax = plt.subplots()
+    ax.plot(collected_rewards)
+    ax.grid()
+    ax.set_xlabel('Episodes')
+    ax.set_ylabel('Collected rewards')
+    ax.set_title('Rewards collected during training')
+    plt.savefig('./' + agent_name + '_collected_rewards.png')
+
     # save
     replay_path_to_dir = '../saved_data/'
     agent_path_to_dir = '../saved_agents/'
     actor.agent.save_model(agent_path_to_dir)
     actor.replay_buffer.save(replay_path_to_dir)
+    with open(os.path.join('../saved_data/', str(agent_name) + '_collected_rewards.pkl'), 'wb') as f:
+        pickle.dump(collected_rewards, f)
