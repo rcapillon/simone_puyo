@@ -43,7 +43,7 @@ class MLPAgent:
         """
         builds and compiles the neural network
         """
-        model_input = keras.layers.Input(shape=(14, 6, 5))
+        model_input = keras.layers.Input(shape=(14, 6, 4))
 
         output = keras.layers.Flatten(data_format='channels_last')(model_input)
         for i in range(self.config.n_common_hidden_layers):
@@ -286,8 +286,8 @@ class ResNetAgent:
         """
         Construit le modèle ResNet complet
         """
-        # Input shape: (14, 6, 5) = (hauteur, largeur, channels)
-        model_input = keras.layers.Input(shape=(14, 6, 5))
+        # Input shape: (14, 6, 4) = (hauteur, largeur, channels)
+        model_input = keras.layers.Input(shape=(14, 6, 4))
 
         l2_reg = self.config.l2_regularization
 
