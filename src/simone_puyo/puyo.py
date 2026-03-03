@@ -219,7 +219,7 @@ class Board:
         self.nrow = 13
         self.ncol = 6
 
-        self.placing_indices = np.ones((6, )) * (self.nrow - 1)
+        self.placing_indices = np.ones((6, ), dtype=np.int32) * (self.nrow - 1)
 
     def place_tsumo_num(self, num_tsumo, move):
         """
