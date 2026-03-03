@@ -5,7 +5,7 @@ import matplotlib.colors
 
 
 # negative reward when action results in game over
-GAMEOVER_REWARD = -np.sqrt(100 + 1) - 1
+GAMEOVER_REWARD = -(np.sqrt(100 + 1) - 1)
 
 # reward function for chains 1 through 19
 reward_dict = {
