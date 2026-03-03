@@ -17,7 +17,7 @@ class Actor:
         self.agent_config = agent_config
         self.mcts_config = mcts_config
         self.replay_config = replay_config
-        self.replay_buffer = ReplayBuffer(config=replay_config)
+        self.replay_buffer = ReplayBuffer(name=self.agent.name, config=replay_config)
 
     def reset_game(self):
         """
