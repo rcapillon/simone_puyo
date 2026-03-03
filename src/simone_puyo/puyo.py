@@ -5,13 +5,13 @@ import matplotlib.colors
 
 
 # negative reward when action results in game over
-GAMEOVER_REWARD = -100.
+GAMEOVER_REWARD = -np.sqrt(100 + 1) - 1
 
 # reward function for chains 1 through 19
 reward_dict = {
 }
 for i in range(20):
-    reward_dict[int(i)] = i**2.5
+    reward_dict[int(i)] = np.sqrt(i**2.5 + 1) - 1
 
 # color parameters for plotting game boards
 cvals = [0, 1, 2, 3, 4, 5]
