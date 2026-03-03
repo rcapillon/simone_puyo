@@ -32,17 +32,17 @@ if __name__ == '__main__':
     elif agent_type == 'resnet':
         agent_name = 'resnet_agent_1'
         agent_config = ResNetConfig(
-            num_res_blocks=4,
-            num_filters=64,
+            num_res_blocks=10,
+            num_filters=128,
             kernel_size=3,
-            policy_filters=2,
+            policy_filters=4,
             policy_hidden_size=128,
-            value_filters=1,
-            value_hidden_size=128,
-            l2_regularization=1e-4,
+            value_filters=4,
+            value_hidden_size=256,
+            l2_regularization=3e-4,
             use_batch_norm=True,
             learning_rate=1e-3,
-            batch_size=64
+            batch_size=256
         )
         agent = ResNetAgent(name=agent_name, config=agent_config)
 
@@ -56,7 +56,7 @@ if __name__ == '__main__':
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=400,
+        n_simulations=1000,
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.3,
@@ -77,29 +77,31 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 4
-    episode_batches = 10
+    n_cycles = 2
+    training_cycles = 10
+    collect_cycles = 1
     buffer_min_length = 1000
 
-    with open(os.path.join('../saved_data/', str(agent_name) + '_collected_rewards.pkl'), 'rb') as f1:
-        collected_rewards = pickle.load(f1)
+    collected_rewards = []
 
     t0 = time()
     for i in range(n_cycles):
         print(f'CYCLE {i + 1}')
-
+        batch_counter = 1
         # SAMPLE COLLECTION AND TRAINING LOOP
-        for j in range(episode_batches):
-            t_episode_0 = time()
-            print(f'EPISODE BATCH {j + 1}')
-            rewards = actor.collect_games_parallel(n_cpu=n_cpu)
-            collected_rewards.extend(rewards)
-            print(f'Average reward: {np.mean(rewards)}')
+        for j in range(training_cycles):
+            for k in range(collect_cycles):
+                t_episode_0 = time()
+                print(f'EPISODE BATCH {batch_counter}')
+                rewards = actor.collect_games_parallel(n_cpu=n_cpu)
+                collected_rewards.extend(rewards)
+                print(f'Average reward: {np.mean(rewards)}')
+                batch_counter += 1
+                t_episode_1 = time()
+                print(f'Episode batch took: {t_episode_1 - t_episode_0} seconds.')
             if (len(actor.replay_buffer.observations) >= agent_config.batch_size
                     and len(actor.replay_buffer.observations) >= buffer_min_length):
                 actor.train_on_batch()
-            t_episode_1 = time()
-            print(f'Episode batch took: {t_episode_1 - t_episode_0} seconds.')
 
         # TEST
         print('TEST GAMES')
