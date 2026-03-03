@@ -64,7 +64,8 @@ class ReplayBuffer:
     """
     Class for the Replay Buffer
     """
-    def __init__(self, config=ReplayConfig()):
+    def __init__(self, name, config=ReplayConfig()):
+        self.name = name
         self.config = config
 
         self.observations = []
@@ -110,12 +111,12 @@ class ReplayBuffer:
         """
         save replay buffer data to pickle file
         """
-        with open(os.path.join(path_to_dir, 'replay_buffer.pkl'), 'wb') as f1:
+        with open(os.path.join(path_to_dir, self.name + '_replay_buffer.pkl'), 'wb') as f1:
             pickle.dump((self.observations, self.returns, self.policies), f1)
 
     def load(self, path_to_dir):
         """
         load replay buffer data from pickle file
         """
-        with open(os.path.join(path_to_dir, 'replay_buffer.pkl'), 'rb') as f1:
+        with open(os.path.join(path_to_dir, self.name + '_replay_buffer.pkl'), 'rb') as f1:
             self.observations, self.returns, self.policies = pickle.load(f1)
