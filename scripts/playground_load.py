@@ -93,7 +93,7 @@ if __name__ == '__main__':
             t_episode_0 = time()
             print(f'EPISODE BATCH {j + 1}')
             rewards = actor.collect_games_parallel(n_cpu=n_cpu)
-            collected_rewards.append(rewards)
+            collected_rewards.extend(rewards)
             print(f'Average reward: {np.mean(rewards)}')
             if (len(actor.replay_buffer.observations) >= agent_config.batch_size
                     and len(actor.replay_buffer.observations) >= buffer_min_length):
