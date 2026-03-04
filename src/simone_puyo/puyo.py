@@ -95,29 +95,29 @@ def array_num2onehot(array):
     return onehot_array
 
 
-# def find_placing_index_vectorized(board):
-#     """
-#     Find the lowest available space in all board columns at once.
-#     Returns array of indices of shape (6,)
-#     """
-#     # For each column, find first non-zero from bottom
-#     # If column is empty, return nrow (13)
-#     # If column is full, return -1
-#     nrow = board.shape[0]
-#     indices = np.zeros(6, dtype=np.int32)
-#
-#     for col in range(6):
-#         column = board[:, col]
-#         # Find first non-zero element
-#         nonzero_idx = np.where(column != 0)[0]
-#         if len(nonzero_idx) == 0:
-#             # Column is empty
-#             indices[col] = nrow - 1
-#         else:
-#             # Place just above first non-zero
-#             indices[col] = nonzero_idx[0] - 1
-#
-#     return indices
+def find_placing_index_vectorized(board):
+    """
+    Find the lowest available space in all board columns at once.
+    Returns array of indices of shape (6,)
+    """
+    # For each column, find first non-zero from bottom
+    # If column is empty, return nrow (13)
+    # If column is full, return -1
+    nrow = board.shape[0]
+    indices = np.zeros(6, dtype=np.int32)
+
+    for col in range(6):
+        column = board[:, col]
+        # Find first non-zero element
+        nonzero_idx = np.where(column != 0)[0]
+        if len(nonzero_idx) == 0:
+            # Column is empty
+            indices[col] = nrow - 1
+        else:
+            # Place just above first non-zero
+            indices[col] = nonzero_idx[0] - 1
+
+    return indices
 
 
 def get_legal_actions(board):
@@ -219,8 +219,6 @@ class Board:
         self.nrow = 13
         self.ncol = 6
 
-        self.placing_indices = np.ones((6, ), dtype=np.int32) * (self.nrow - 1)
-
     def place_tsumo_num(self, num_tsumo, move):
         """
         Place numeric representation of puyo on the board.
@@ -228,55 +226,50 @@ class Board:
         puyo1, puyo2 = num_tsumo[0, 0], num_tsumo[0, 1]
 
         # Precompute placing indices for all columns (vectorized)
-        # placing_indices = find_placing_index_vectorized(self.num_board)
+        placing_indices = find_placing_index_vectorized(self.num_board)
 
         if move < 6:
             # Vertical moves (0-5): puyo1 bottom, puyo2 top
             col_idx = move
-            idx_puyo1 = self.placing_indices[col_idx]
+            idx_puyo1 = placing_indices[col_idx]
             idx_puyo2 = idx_puyo1 - 1
             if idx_puyo1 >= 0:
                 self.num_board[idx_puyo1, col_idx] = puyo1
             if idx_puyo2 >= 0:
                 self.num_board[idx_puyo2, col_idx] = puyo2
-            self.placing_indices[col_idx] -= 2
 
         elif move < 12:
             # Vertical moves (6-11): puyo2 bottom, puyo1 top
             col_idx = move - 6
-            idx_puyo1 = self.placing_indices[col_idx]
+            idx_puyo1 = placing_indices[col_idx]
             idx_puyo2 = idx_puyo1 - 1
             if idx_puyo1 >= 0:
                 self.num_board[idx_puyo1, col_idx] = puyo2
             if idx_puyo2 >= 0:
                 self.num_board[idx_puyo2, col_idx] = puyo1
-            self.placing_indices[col_idx] -= 2
 
         elif move < 17:
             # Horizontal moves (12-16): puyo1 left, puyo2 right
             col1_idx = move - 12
             col2_idx = col1_idx + 1
-            idx_puyo1 = self.placing_indices[col1_idx]
-            idx_puyo2 = self.placing_indices[col2_idx]
+            idx_puyo1 = placing_indices[col1_idx]
+            idx_puyo2 = placing_indices[col2_idx]
             if idx_puyo1 >= 0:
                 self.num_board[idx_puyo1, col1_idx] = puyo1
             if idx_puyo2 >= 0:
                 self.num_board[idx_puyo2, col2_idx] = puyo2
-            self.placing_indices[col1_idx] -= 1
-            self.placing_indices[col2_idx] -= 1
+            placing_indices[col1_idx] -= 1
 
         else:
             # Horizontal moves (17-21): puyo2 left, puyo1 right
             col1_idx = move - 17
             col2_idx = col1_idx + 1
-            idx_puyo1 = self.placing_indices[col1_idx]
-            idx_puyo2 = self.placing_indices[col2_idx]
+            idx_puyo1 = placing_indices[col1_idx]
+            idx_puyo2 = placing_indices[col2_idx]
             if idx_puyo1 >= 0:
                 self.num_board[idx_puyo1, col1_idx] = puyo2
             if idx_puyo2 >= 0:
                 self.num_board[idx_puyo2, col2_idx] = puyo1
-            self.placing_indices[col1_idx] -= 1
-            self.placing_indices[col2_idx] -= 1
 
     def update_onehot_board(self):
         """
