@@ -258,7 +258,6 @@ class Board:
                 self.num_board[idx_puyo1, col1_idx] = puyo1
             if idx_puyo2 >= 0:
                 self.num_board[idx_puyo2, col2_idx] = puyo2
-            placing_indices[col1_idx] -= 1
 
         else:
             # Horizontal moves (17-21): puyo2 left, puyo1 right
