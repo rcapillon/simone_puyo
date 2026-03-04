@@ -119,15 +119,23 @@ if __name__ == '__main__':
     # training loss plot
     _, ax = plt.subplots()
     value_head_loss = [losses[0] for losses in actor.agent.training_loss]
-    policy_head_loss = [losses[1] for losses in actor.agent.training_loss]
     ax.semilogy(value_head_loss, label='value head loss')
+    ax.grid()
+    ax.legend()
+    ax.set_xlabel('Training steps')
+    ax.set_ylabel('Loss')
+    ax.set_title('Value head loss')
+    plt.savefig('./' + agent_name + '_value_loss.png')
+
+    _, ax = plt.subplots()
+    policy_head_loss = [losses[1] for losses in actor.agent.training_loss]
     ax.semilogy(policy_head_loss, label='policy head loss')
     ax.grid()
     ax.legend()
     ax.set_xlabel('Training steps')
     ax.set_ylabel('Loss')
-    ax.set_title('Training losses')
-    plt.savefig('./' + agent_name + '_training_losses.png')
+    ax.set_title('Policy head loss')
+    plt.savefig('./' + agent_name + '_policy_loss.png')
 
     # test plot
     _, ax = plt.subplots()
@@ -165,5 +173,5 @@ if __name__ == '__main__':
     agent_path_to_dir = '../saved_agents/'
     actor.agent.save_model(agent_path_to_dir)
     actor.replay_buffer.save(replay_path_to_dir)
-    with open(os.path.join('../saved_data/', str(agent_name) + '_collected_rewards.pkl'), 'wb') as f:
+    with open(os.path.join('../saved_data/', agent_name + '_collected_rewards.pkl'), 'wb') as f:
         pickle.dump(collected_rewards, f)
