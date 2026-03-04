@@ -12,7 +12,7 @@ from src.simone_puyo.utils import random_argmax_in_array
 
 if __name__ == '__main__':
     agent_type = 'resnet'
-    with_mcts = True
+    with_mcts = False
 
     if agent_type == 'resnet':
         agent = ResNetAgent(name='resnet_agent_1')
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
 
     chains = []
-    n_games = 100
+    n_games = 1000
     for i in tqdm(range(n_games)):
         observation = actor.reset_game()
         root = Node(
@@ -99,7 +99,9 @@ if __name__ == '__main__':
                     if reward == GAMEOVER_REWARD:
                         chains.append(-1)
                     else:
-                        chains.append(int(np.round(reward ** (1 / 2.5))))
+                        chains.append(int(np.round(
+                            ((reward + 1) ** 2 - 1) ** (1 / 2.5)))
+                        )
 
     fig, ax = plt.subplots(figsize=(14, 5))
     bins_edges = np.arange(-1.5, 19.6, 1)  # bords à -1.5, -0.5, 0.5, ..., 19.5
