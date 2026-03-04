@@ -12,7 +12,7 @@ from src.simone_puyo.utils import random_argmax_in_array
 
 if __name__ == '__main__':
     agent_type = 'resnet'
-    with_mcts = False
+    with_mcts = True
 
     if agent_type == 'resnet':
         agent = ResNetAgent(name='resnet_agent_1')
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
 
     chains = []
-    n_games = 1000
+    n_games = 100
     for i in tqdm(range(n_games)):
         observation = actor.reset_game()
         root = Node(
