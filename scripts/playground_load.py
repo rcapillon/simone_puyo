@@ -11,7 +11,7 @@ import pickle
 # enable_mixed_precision()
 
 from src.simone_puyo.agents import ResNetConfig, ResNetAgent, MLPConfig, MLPAgent
-from src.simone_puyo.puyo import PuyoGame, reward_dict
+from src.simone_puyo.puyo import PuyoGame
 from src.simone_puyo.mcts_batched import MCTSConfig
 from src.simone_puyo.replay import ReplayConfig
 from src.simone_puyo.actor import Actor
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     # Hyperparamètres d'entraînement
     # ======================================================================
     n_cpu                    = 4
-    n_cycles                 = 10
+    n_cycles                 = 30
     training_steps_per_cycle = 10
     gradient_steps           = 4
     buffer_min_length        = 5000

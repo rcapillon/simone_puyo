@@ -153,6 +153,30 @@ class MLPAgent:
         history = self.model.fit(inputs, [value_outputs, policy_outputs], epochs=epochs, verbose=verbose)
         self.training_loss.append((history.history['value_head_loss'], history.history['policy_head_loss']))
 
+    def __getstate__(self):
+        """
+        Appelé par pickle lors de la sérialisation vers les workers (macOS/Windows spawn).
+        On retire _compiled_inference : tf.function contient un FuncGraph non picklable
+        une fois tracé (après le premier appel réseau).
+        Le modèle Keras (poids + architecture) est lui picklable.
+        """
+        state = self.__dict__.copy()
+        state['_compiled_inference'] = None
+        return state
+
+    def __setstate__(self, state):
+        """
+        Appelé par pickle lors de la désérialisation dans le worker.
+        On reconstruit _compiled_inference à partir du modèle reçu.
+        Le worker dispose ainsi d'une copie fonctionnelle du réseau.
+        """
+        self.__dict__.update(state)
+        if self.model is not None:
+            self._compiled_inference = tf.function(
+                self._run_inference,
+                reduce_retracing=True
+            )
+
     def __call__(self, inputs):
         """
         Predicts value and policy from inputs.
@@ -458,6 +482,30 @@ class ResNetAgent:
         self.training_loss.append((value_loss, policy_loss))
 
         return history
+
+    def __getstate__(self):
+        """
+        Appelé par pickle lors de la sérialisation vers les workers (macOS/Windows spawn).
+        On retire _compiled_inference : tf.function contient un FuncGraph non picklable
+        une fois tracé (après le premier appel réseau).
+        Le modèle Keras (poids + architecture) est lui picklable.
+        """
+        state = self.__dict__.copy()
+        state['_compiled_inference'] = None
+        return state
+
+    def __setstate__(self, state):
+        """
+        Appelé par pickle lors de la désérialisation dans le worker.
+        On reconstruit _compiled_inference à partir du modèle reçu.
+        Le worker dispose ainsi d'une copie fonctionnelle du réseau.
+        """
+        self.__dict__.update(state)
+        if self.model is not None:
+            self._compiled_inference = tf.function(
+                self._run_inference,
+                reduce_retracing=True
+            )
 
     def __call__(self, inputs):
         """
