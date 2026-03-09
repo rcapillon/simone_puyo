@@ -25,7 +25,7 @@ if __name__ == '__main__':
             n_policy_hidden_layers=1,
             n_policy_neurons_per_layer=512,
             learning_rate=1e-3,
-            batch_size=64
+            batch_size=256
         )
         agent = MLPAgent(name=agent_name, config=agent_config)
 
@@ -61,14 +61,15 @@ if __name__ == '__main__':
         discount_factor=0.99,
         dirichlet_alpha=0.3,
         dirichlet_epsilon=0.25,
-        tau_max=1.,
-        tau_min=1.,
-        batch_size=128,
-        virtual_loss=1.
+        tau_max=2.5,
+        tau_min=0.3,
+        batch_size=32,
+        virtual_loss=1.,
+        n_steps=15
     )
 
     replay_config = ReplayConfig(
-        max_capacity=100000
+        max_capacity=10000
     )
 
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
@@ -97,7 +98,6 @@ if __name__ == '__main__':
                 print(f'EPISODE BATCH {batch_counter}')
                 rewards = actor.collect_games_parallel(n_cpu=n_cpu)
                 collected_rewards.extend(rewards)
-                print(f'Average reward: {np.mean(rewards)}')
                 batch_counter += 1
                 t_episode_1 = time()
                 print(f'Episode batch took: {t_episode_1 - t_episode_0} seconds.')
