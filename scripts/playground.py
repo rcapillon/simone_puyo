@@ -32,14 +32,14 @@ if __name__ == '__main__':
     elif agent_type == 'resnet':
         agent_name = 'resnet_agent_1'
         agent_config = ResNetConfig(
-            num_res_blocks=10,
-            num_filters=128,
+            num_res_blocks=3,
+            num_filters=64,
             kernel_size=3,
-            policy_filters=4,
+            policy_filters=2,
             policy_hidden_size=128,
-            value_filters=4,
-            value_hidden_size=256,
-            l2_regularization=3e-4,
+            value_filters=1,
+            value_hidden_size=128,
+            l2_regularization=1e-4,
             use_batch_norm=True,
             learning_rate=1e-3,
             batch_size=256
@@ -62,32 +62,34 @@ if __name__ == '__main__':
         dirichlet_epsilon=0.25,
         tau_max=1.,
         tau_min=1.,
-        batch_size=32,
+        batch_size=128,
         virtual_loss=1.
     )
 
     replay_config = ReplayConfig(
-        max_capacity=10000
+        max_capacity=100000
     )
 
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 1
+    n_cycles = 20
     training_cycles = 10
     collect_cycles = 1
-    buffer_min_length = 1000
+    gradient_steps_per_cycle = 4
+    buffer_min_length = 5000
 
-    collected_rewards = []
+    with open(os.path.join('../saved_data/', agent_name + '_collected_rewards.pkl'), 'rb') as f1:
+        collected_rewards = pickle.load(f1)
 
     t0 = time()
     for i in range(n_cycles):
         print(f'CYCLE {i + 1}')
         batch_counter = 1
         # SAMPLE COLLECTION AND TRAINING LOOP
-        for j in range(training_cycles):
-            for k in range(collect_cycles):
+        for _ in range(training_cycles):
+            for _ in range(collect_cycles):
                 t_episode_0 = time()
                 print(f'EPISODE BATCH {batch_counter}')
                 rewards = actor.collect_games_parallel(n_cpu=n_cpu)
@@ -98,7 +100,8 @@ if __name__ == '__main__':
                 print(f'Episode batch took: {t_episode_1 - t_episode_0} seconds.')
             if (len(actor.replay_buffer.observations) >= agent_config.batch_size
                     and len(actor.replay_buffer.observations) >= buffer_min_length):
-                actor.train_on_batch()
+                for _ in range(gradient_steps_per_cycle):
+                    actor.train_on_batch()
 
         # TEST
         print('TEST GAMES')
