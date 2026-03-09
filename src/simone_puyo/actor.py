@@ -4,7 +4,7 @@ from multiprocessing import Pool
 from .mcts_batched import Node, run_mcts
 from .utils import random_argmax_in_array
 from .replay import ReplayBuffer, EpisodeBuffer
-from .puyo import GAMEOVER_REWARD, get_chance_code
+from .puyo import get_chance_code
 
 
 class Actor:
@@ -77,13 +77,32 @@ class Actor:
             root = new_root
             step += 1
 
-        # Stocke l'état terminal uniquement en cas de game over.
-        # - s_{T+1} est le board avec la cellule gameover remplie → valeur vraie = 0
-        # - r_T (GAMEOVER_REWARD) est déjà stocké dans le store_transition précédent
-        # Ne pas stocker en cas de fin par max_moves : la valeur résiduelle
-        # n'est pas nulle et stocker reward=0 introduirait un biais négatif.
         if self.game.state.board.check_gameover():
             episode_buffer.store_terminal_state(observation)
+
+        # ------------------------------------------------------------------
+        # Inférence batchée pour les valeurs bootstrap.
+        # Une seule passe réseau sur toutes les observations de l'épisode.
+        # ------------------------------------------------------------------
+        obs_array = np.array(episode_buffer.observations)  # (T, 14, 6, 4)
+        bootstrap_values, _ = self.agent(obs_array)  # (T,)
+        bootstrap_values = np.array(bootstrap_values).flatten()
+
+        # Dénormalisation : les valeurs réseau sont dans l'espace normalisé
+        # (mean=0, std=1 du buffer), les rewards stockés sont bruts.
+        # Il faut repasser dans l'espace brut avant de combiner les deux,
+        # puis sample_batch renormalisera les returns finaux à l'entraînement.
+        # Pendant le warm-up (_returns_std == 1., _returns_mean == 0.),
+        # cette opération est neutre.
+        bootstrap_values = (
+                bootstrap_values * self.replay_buffer._returns_std
+                + self.replay_buffer._returns_mean
+        )
+
+        episode_buffer.compute_returns(
+            n_steps=self.mcts_config.n_steps,
+            bootstrap_values=bootstrap_values
+        )
 
         return episode_buffer, total_reward
 

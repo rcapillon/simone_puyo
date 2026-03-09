@@ -37,6 +37,11 @@ class MCTSConfig:
     tau_max: float = 2.
     tau_min: float = 0.5
 
+    # Nombre de steps pour le bootstrapping des returns.
+    # None = Monte Carlo pur (comportement original).
+    # 5–10 : bon compromis biais/variance pour des épisodes de ~80 steps.
+    n_steps: int = 5
+
     def __post_init__(self):
         pass
 

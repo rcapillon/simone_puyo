@@ -31,24 +31,59 @@ class EpisodeBuffer:
         """
         Stocke l'état terminal en cas de game over uniquement.
         reward = 0 : la pénalité GAMEOVER_REWARD est déjà dans le
-        store_transition précédent (via game.step).
-        Fournit au value head un exemple explicite : cet état vaut 0.
-        Ne pas appeler en cas de fin par max_moves (valeur résiduelle non nulle).
+        store_transition précédent. Valeur cible de cet état = 0.
         """
         self.observations.append(observation)
         self.rewards.append(0.)
         self.policies.append(np.zeros((22,)))
 
-    def compute_returns(self):
+    def compute_returns(self, n_steps=None, bootstrap_values=None):
         """
-        Calcule les retours cumulés actualisés pour tout l'épisode.
-        Pas de cas spécial nécessaire : reward de l'état terminal = 0,
-        GAMEOVER_REWARD est déjà dans la transition précédente.
+        Calcule les retours cumulés pour tout l'épisode.
+
+        Sans bootstrap (n_steps=None) : Monte Carlo pur jusqu'à la fin.
+
+        Avec bootstrap :
+            G_t^(n) = Σ_{k=0}^{n-1} γ^k · r_{t+k}  +  γ^n · V_θ(s_{t+n})
+
+        Le bootstrap est supprimé proprement dans deux cas :
+          - t+n dépasse la fin de l'épisode : on utilise les rewards
+            restants sans bootstrap (pas de valeur disponible).
+          - s_{t+n} est un état terminal (reward == 0 et dernier état
+            après game over) : bootstrap_values[t+n] doit être 0,
+            ce qui est garanti car store_terminal_state stocke reward=0
+            et l'inférence réseau sur cet état converge vers 0.
         """
-        value = 0
-        for i in reversed(range(len(self.rewards))):
-            value = self.rewards[i] + self.discount_factor * value
-            self.returns.insert(0, value)
+        T = len(self.rewards)
+        self.returns = [0.] * T
+
+        use_bootstrap = (n_steps is not None) and (bootstrap_values is not None)
+
+        if not use_bootstrap:
+            # Monte Carlo pur — comportement original
+            value = 0.
+            for i in reversed(range(T)):
+                value = self.rewards[i] + self.discount_factor * value
+                self.returns[i] = value
+            return
+
+        for t in range(T):
+            g = 0.
+            # Somme des rewards sur n steps (ou jusqu'à la fin)
+            for k in range(n_steps):
+                if t + k < T:
+                    g += (self.discount_factor ** k) * self.rewards[t + k]
+                else:
+                    break
+
+            # Bootstrap avec V_θ(s_{t+n}) si t+n est dans l'épisode
+            bootstrap_idx = t + n_steps
+            if bootstrap_idx < T:
+                g += (self.discount_factor ** n_steps) * bootstrap_values[bootstrap_idx]
+            # Sinon : pas de bootstrap, on a déjà accumulé tous les rewards
+            # jusqu'à la fin — équivalent à V=0 au-delà de l'épisode.
+
+            self.returns[t] = g
 
 
 class ReplayBuffer:
@@ -59,17 +94,10 @@ class ReplayBuffer:
         self.returns = []
         self.policies = []
 
-        # Statistiques calculées sur l'ensemble du buffer.
-        # Plus stables qu'une normalisation par batch car elles
-        # évoluent lentement au fil de l'entraînement.
         self._returns_mean = 0.
         self._returns_std = 1.
 
     def _update_normalization_stats(self):
-        """
-        Recalcule mean et std sur tous les returns du buffer.
-        Appelé après chaque modification (add_episode, trim_buffer, load).
-        """
         if len(self.returns) < 2:
             return
         arr = np.array(self.returns)
@@ -77,7 +105,16 @@ class ReplayBuffer:
         self._returns_std = float(arr.std()) + 1e-8
 
     def add_episode(self, episode):
-        episode.compute_returns()
+        """
+        Ajoute un épisode au buffer.
+        compute_returns() doit avoir été appelé AVANT add_episode,
+        car le bootstrap nécessite les valeurs réseau calculées dans collect_game.
+        """
+        if not episode.returns:
+            # Fallback sécurité : Monte Carlo pur si compute_returns
+            # n'a pas été appelé explicitement
+            episode.compute_returns()
+
         self.observations.extend(episode.observations)
         self.returns.extend(episode.returns)
         self.policies.extend(episode.policies)
@@ -102,11 +139,6 @@ class ReplayBuffer:
         batch_returns = np.array(self.returns)[indices]
         batch_policies = np.array(self.policies)[indices, :]
 
-        # Normalisation sur les stats du buffer complet.
-        # Le value head apprend à prédire la valeur relative à la
-        # distribution courante des retours → gradients plus stables.
-        # L'UCT compare les Q-values entre elles, pas contre un seuil
-        # absolu → le changement d'échelle ne dégrade pas la sélection.
         batch_returns = (batch_returns - self._returns_mean) / self._returns_std
 
         return batch_observations, batch_returns, batch_policies
