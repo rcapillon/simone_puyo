@@ -1,8 +1,19 @@
 import os
 import numpy as np
 import keras
+import tensorflow as tf
 import pickle
 from dataclasses import dataclass
+
+
+def enable_mixed_precision():
+    """
+    Active le mixed precision float16 globalement.
+    Doublement du débit sur GPU Turing/Ampere (RTX 20xx/30xx/40xx).
+    À appeler une seule fois avant tout build_model(), en début de script.
+    Sans effet notable sur CPU.
+    """
+    keras.mixed_precision.set_global_policy('mixed_float16')
 
 
 @dataclass
@@ -35,13 +46,15 @@ class MLPAgent:
         self.config = config
 
         self.model = None
+        self._compiled_inference = None
 
         self.training_loss = []
         self.test_scores = []
 
     def build_model(self, summary=False):
         """
-        builds and compiles the neural network
+        Builds and compiles the neural network, then compiles the inference
+        function with tf.function for faster repeated calls during MCTS.
         """
         model_input = keras.layers.Input(shape=(14, 6, 4))
 
@@ -55,14 +68,21 @@ class MLPAgent:
         for i in range(1, self.config.n_value_hidden_layers):
             value_output = keras.layers.Dense(self.config.n_value_neurons_per_layer)(value_output)
             value_output = keras.activations.relu(value_output)
-        value_output = keras.layers.Dense(1, name='value_head')(value_output)
+        # dtype='float32' explicite : stabilité numérique avec mixed precision
+        value_output = keras.layers.Dense(1, name='value_head', dtype='float32')(value_output)
 
         policy_output = keras.layers.Dense(self.config.n_policy_neurons_per_layer)(output)
         policy_output = keras.activations.relu(policy_output)
         for i in range(1, self.config.n_policy_hidden_layers):
             policy_output = keras.layers.Dense(self.config.n_policy_neurons_per_layer)(policy_output)
             policy_output = keras.activations.relu(policy_output)
-        policy_output = keras.layers.Dense(22, activation=keras.activations.softmax, name='policy_head')(policy_output)
+        # dtype='float32' explicite : softmax en float32 pour éviter les NaN
+        policy_output = keras.layers.Dense(
+            22,
+            activation=keras.activations.softmax,
+            name='policy_head',
+            dtype='float32'
+        )(policy_output)
 
         self.model = keras.models.Model(inputs=model_input, outputs=[value_output, policy_output])
 
@@ -71,18 +91,40 @@ class MLPAgent:
             loss=[keras.losses.MeanSquaredError(), keras.losses.CategoricalCrossentropy()]
         )
 
+        # Compile l'inférence en graphe statique :
+        # - training=False : BatchNorm en mode inférence (stats figées), pas de dropout
+        # - reduce_retracing=True : évite les recompilations pour des shapes légèrement différentes
+        self._compiled_inference = tf.function(
+            self._run_inference,
+            reduce_retracing=True
+        )
+
         if summary:
             self.model.summary()
 
+    def _run_inference(self, inputs):
+        """
+        Forward pass en mode inférence.
+        Appelé uniquement via _compiled_inference (jamais directement).
+        training=False désactive BatchNorm en mode entraînement et le dropout.
+        """
+        return self.model(inputs, training=False)
+
     def load_model(self, path_to_model_dir, summary=False):
         """
-        load neural network from keras file as well as training loss and test metrics
+        Load neural network from keras file as well as training loss and test metrics.
         """
         self.model = keras.models.load_model(os.path.join(path_to_model_dir, str(self.name) + '.keras'))
 
         self.model.compile(
             optimizer=keras.optimizers.Adam(learning_rate=self.config.learning_rate),
             loss=[keras.losses.MeanSquaredError(), keras.losses.CategoricalCrossentropy()]
+        )
+
+        # Recompiler l'inférence après chargement
+        self._compiled_inference = tf.function(
+            self._run_inference,
+            reduce_retracing=True
         )
 
         with open(os.path.join(path_to_model_dir, str(self.name) + '_training_loss.pkl'), 'rb') as f1:
@@ -95,7 +137,7 @@ class MLPAgent:
 
     def save_model(self, path_to_model_dir):
         """
-        save neural network to keras file, as well as training loss and test metrics
+        Save neural network to keras file, as well as training loss and test metrics.
         """
         self.model.save(os.path.join(path_to_model_dir, str(self.name) + '.keras'))
 
@@ -106,31 +148,34 @@ class MLPAgent:
 
     def train(self, inputs, value_outputs, policy_outputs, epochs=1, verbose=2):
         """
-        train network on sample batch, stores training loss metrics
+        Train network on sample batch, stores training loss metrics.
         """
         history = self.model.fit(inputs, [value_outputs, policy_outputs], epochs=epochs, verbose=verbose)
         self.training_loss.append((history.history['value_head_loss'], history.history['policy_head_loss']))
 
     def __call__(self, inputs):
         """
-        predicts value and policy from inputs
+        Predicts value and policy from inputs.
+        Utilise _compiled_inference (tf.function) pour les appels répétés du MCTS.
         """
         if isinstance(inputs, list):
-            value, policy = self.model(np.array(inputs))
-        elif isinstance(inputs, np.ndarray):
+            inputs = np.array(inputs)
+
+        if isinstance(inputs, np.ndarray):
             if inputs.ndim == 3:
-                value, policy = self.model(inputs[np.newaxis, :, :, :])
-                value = value[0, 0]
-                policy = policy[0, :]
+                tensor_input = tf.constant(inputs[np.newaxis, :, :, :])
+                value, policy = self._compiled_inference(tensor_input)
+                value  = float(value[0, 0].numpy())
+                policy = policy[0, :].numpy()
             elif inputs.ndim == 4:
-                value, policy = self.model(inputs)
+                tensor_input = tf.constant(inputs)
+                value, policy = self._compiled_inference(tensor_input)
+                value  = value.numpy()
+                policy = policy.numpy()
             else:
                 raise ValueError('Input array should have 3 or 4 dimensions.')
         else:
             raise ValueError('Input should be a list or numpy array.')
-
-        value = value.numpy()
-        policy = policy.numpy()
 
         return value, policy
 
@@ -168,6 +213,7 @@ class ResNetAgent:
         self.config = config
 
         self.model = None
+        self._compiled_inference = None
 
         self.training_loss = []
         self.test_scores = []
@@ -177,7 +223,6 @@ class ResNetAgent:
         Bloc résiduel standard :
         Input → Conv → BN → ReLU → Conv → BN → Add → ReLU
         """
-        # Première convolution
         conv1 = keras.layers.Conv2D(
             filters=filters,
             kernel_size=kernel_size,
@@ -191,7 +236,6 @@ class ResNetAgent:
 
         conv1 = keras.layers.Activation('relu')(conv1)
 
-        # Deuxième convolution
         conv2 = keras.layers.Conv2D(
             filters=filters,
             kernel_size=kernel_size,
@@ -203,7 +247,6 @@ class ResNetAgent:
         if self.config.use_batch_norm:
             conv2 = keras.layers.BatchNormalization()(conv2)
 
-        # Skip connection (addition)
         output = keras.layers.Add()([x, conv2])
         output = keras.layers.Activation('relu')(output)
 
@@ -213,10 +256,9 @@ class ResNetAgent:
         """
         Policy head : Conv → BN → ReLU → Flatten → Dense → Softmax
         """
-        # Convolution pour réduire les features
         policy = keras.layers.Conv2D(
             filters=self.config.policy_filters,
-            kernel_size=1,  # 1x1 conv pour réduction
+            kernel_size=1,
             padding='same',
             kernel_regularizer=keras.regularizers.l2(l2_reg),
             data_format='channels_last'
@@ -226,8 +268,6 @@ class ResNetAgent:
             policy = keras.layers.BatchNormalization()(policy)
 
         policy = keras.layers.Activation('relu')(policy)
-
-        # Flatten
         policy = keras.layers.Flatten()(policy)
 
         policy = keras.layers.Dense(
@@ -236,24 +276,24 @@ class ResNetAgent:
             kernel_regularizer=keras.regularizers.l2(l2_reg)
         )(policy)
 
-        # Output layer (22 actions pour Puyo)
+        # dtype='float32' : softmax en float32 pour éviter les NaN avec mixed precision
         policy_output = keras.layers.Dense(
             22,
             activation='softmax',
             kernel_regularizer=keras.regularizers.l2(l2_reg),
-            name='policy_head'
+            name='policy_head',
+            dtype='float32'
         )(policy)
 
         return policy_output
 
     def _build_value_head(self, x, l2_reg):
         """
-        Value head : Conv → BN → ReLU → Flatten → Dense → Dense → Tanh
+        Value head : Conv → BN → ReLU → Flatten → Dense → Dense
         """
-        # Convolution pour réduire les features
         value = keras.layers.Conv2D(
             filters=self.config.value_filters,
-            kernel_size=1,  # 1x1 conv
+            kernel_size=1,
             padding='same',
             kernel_regularizer=keras.regularizers.l2(l2_reg),
             data_format='channels_last'
@@ -263,8 +303,6 @@ class ResNetAgent:
             value = keras.layers.BatchNormalization()(value)
 
         value = keras.layers.Activation('relu')(value)
-
-        # Flatten
         value = keras.layers.Flatten()(value)
 
         value = keras.layers.Dense(
@@ -273,26 +311,25 @@ class ResNetAgent:
             kernel_regularizer=keras.regularizers.l2(l2_reg)
         )(value)
 
-        # Output layer (régression, pas d'activation ou tanh)
+        # dtype='float32' : stabilité numérique avec mixed precision,
+        # évite les underflows sur la régression de valeur
         value_output = keras.layers.Dense(
             1,
             kernel_regularizer=keras.regularizers.l2(l2_reg),
-            name='value_head'
+            name='value_head',
+            dtype='float32'
         )(value)
 
         return value_output
 
     def build_model(self, summary=False):
         """
-        Construit le modèle ResNet complet
+        Construit le modèle ResNet complet, puis compile l'inférence
+        avec tf.function pour accélérer les appels répétés du MCTS.
         """
-        # Input shape: (14, 6, 4) = (hauteur, largeur, channels)
         model_input = keras.layers.Input(shape=(14, 6, 4))
-
         l2_reg = self.config.l2_regularization
 
-        # ===== INITIAL CONVOLUTION =====
-        # Transforme l'input en représentation riche
         x = keras.layers.Conv2D(
             filters=self.config.num_filters,
             kernel_size=self.config.kernel_size,
@@ -306,7 +343,6 @@ class ResNetAgent:
 
         x = keras.layers.Activation('relu')(x)
 
-        # ===== RESIDUAL BLOCKS =====
         for i in range(self.config.num_res_blocks):
             x = self._residual_block(
                 x,
@@ -315,50 +351,65 @@ class ResNetAgent:
                 l2_reg=l2_reg
             )
 
-        # ===== POLICY HEAD =====
         policy_output = self._build_policy_head(x, l2_reg)
+        value_output  = self._build_value_head(x, l2_reg)
 
-        # ===== VALUE HEAD =====
-        value_output = self._build_value_head(x, l2_reg)
-
-        # ===== CREATE MODEL =====
         self.model = keras.models.Model(
             inputs=model_input,
             outputs=[value_output, policy_output]
         )
 
-        # ===== COMPILE =====
         self.model.compile(
             optimizer=keras.optimizers.Adam(learning_rate=self.config.learning_rate),
             loss={
-                'value_head': keras.losses.MeanSquaredError(),
+                'value_head':  keras.losses.MeanSquaredError(),
                 'policy_head': keras.losses.CategoricalCrossentropy()
             },
             loss_weights={'value_head': 1.0, 'policy_head': 1.0}
+        )
+
+        # Compile l'inférence en graphe statique :
+        # - training=False : BatchNorm utilise ses statistiques figées (running mean/var),
+        #   pas les statistiques du batch courant — essentiel pendant le MCTS
+        # - reduce_retracing=True : évite les recompilations inutiles
+        self._compiled_inference = tf.function(
+            self._run_inference,
+            reduce_retracing=True
         )
 
         if summary:
             self.model.summary()
 
+    def _run_inference(self, inputs):
+        """
+        Forward pass en mode inférence.
+        Appelé uniquement via _compiled_inference (jamais directement).
+        """
+        return self.model(inputs, training=False)
+
     def load_model(self, path_to_model_dir, summary=False):
         """
-        Charge un modèle sauvegardé
+        Charge un modèle sauvegardé.
         """
         model_path = os.path.join(path_to_model_dir, str(self.name) + '.keras')
         self.model = keras.models.load_model(model_path)
 
-        # Recompiler avec les bons paramètres
         self.model.compile(
             optimizer=keras.optimizers.Adam(learning_rate=self.config.learning_rate),
             loss={
-                'value_head': keras.losses.MeanSquaredError(),
+                'value_head':  keras.losses.MeanSquaredError(),
                 'policy_head': keras.losses.CategoricalCrossentropy()
             },
             loss_weights={'value_head': 1.0, 'policy_head': 1.0}
         )
 
-        # Charger les historiques
-        loss_path = os.path.join(path_to_model_dir, str(self.name) + '_training_loss.pkl')
+        # Recompiler l'inférence après chargement
+        self._compiled_inference = tf.function(
+            self._run_inference,
+            reduce_retracing=True
+        )
+
+        loss_path   = os.path.join(path_to_model_dir, str(self.name) + '_training_loss.pkl')
         scores_path = os.path.join(path_to_model_dir, str(self.name) + '_test_scores.pkl')
 
         if os.path.exists(loss_path):
@@ -374,14 +425,14 @@ class ResNetAgent:
 
     def save_model(self, path_to_model_dir):
         """
-        Sauvegarde le modèle et les métriques
+        Sauvegarde le modèle et les métriques.
         """
         os.makedirs(path_to_model_dir, exist_ok=True)
 
         model_path = os.path.join(path_to_model_dir, str(self.name) + '.keras')
         self.model.save(model_path)
 
-        loss_path = os.path.join(path_to_model_dir, str(self.name) + '_training_loss.pkl')
+        loss_path   = os.path.join(path_to_model_dir, str(self.name) + '_training_loss.pkl')
         scores_path = os.path.join(path_to_model_dir, str(self.name) + '_test_scores.pkl')
 
         with open(loss_path, 'wb') as f:
@@ -392,7 +443,7 @@ class ResNetAgent:
 
     def train(self, inputs, value_outputs, policy_outputs, epochs=1, verbose=2):
         """
-        Entraîne le modèle sur un batch
+        Entraîne le modèle sur un batch.
         """
         history = self.model.fit(
             inputs,
@@ -402,8 +453,7 @@ class ResNetAgent:
             verbose=verbose
         )
 
-        # Sauvegarder les losses
-        value_loss = history.history['value_head_loss'][-1]
+        value_loss  = history.history['value_head_loss'][-1]
         policy_loss = history.history['policy_head_loss'][-1]
         self.training_loss.append((value_loss, policy_loss))
 
@@ -411,26 +461,28 @@ class ResNetAgent:
 
     def __call__(self, inputs):
         """
-        Inference : retourne (value, policy)
-        Compatible avec votre interface actuelle
+        Inférence : retourne (value, policy).
+        Utilise _compiled_inference (tf.function) pour les appels répétés du MCTS.
         """
         if isinstance(inputs, list):
-            value, policy = self.model(np.array(inputs))
-        elif isinstance(inputs, np.ndarray):
+            inputs = np.array(inputs)
+
+        if isinstance(inputs, np.ndarray):
             if inputs.ndim == 3:
                 # Single input: (14, 6, 4) → (1, 14, 6, 4)
-                value, policy = self.model(inputs[np.newaxis, :, :, :])
-                value = value[0, 0]
-                policy = policy[0, :]
+                tensor_input = tf.constant(inputs[np.newaxis, :, :, :])
+                value, policy = self._compiled_inference(tensor_input)
+                value  = float(value[0, 0].numpy())
+                policy = policy[0, :].numpy()
             elif inputs.ndim == 4:
-                # Batch input
-                value, policy = self.model(inputs)
+                # Batch input: (B, 14, 6, 4)
+                tensor_input = tf.constant(inputs)
+                value, policy = self._compiled_inference(tensor_input)
+                value  = value.numpy()
+                policy = policy.numpy()
             else:
                 raise ValueError('Input array should have 3 or 4 dimensions.')
         else:
             raise ValueError('Input should be a list or numpy array.')
-
-        value = value.numpy()
-        policy = policy.numpy()
 
         return value, policy

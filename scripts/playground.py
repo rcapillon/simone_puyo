@@ -5,18 +5,54 @@ from time import time
 import matplotlib.pyplot as plt
 import pickle
 
+# enable_mixed_precision() DOIT être appelé avant tout import Keras/TF
+# et avant tout build_model(). Décommenter si GPU Turing/Ampere (RTX 20xx+).
+# from src.simone_puyo.agents import enable_mixed_precision
+# enable_mixed_precision()
+
 from src.simone_puyo.agents import ResNetConfig, ResNetAgent, MLPConfig, MLPAgent
-from src.simone_puyo.puyo import PuyoGame
+from src.simone_puyo.puyo import PuyoGame, reward_dict
 from src.simone_puyo.mcts_batched import MCTSConfig
 from src.simone_puyo.replay import ReplayConfig
 from src.simone_puyo.actor import Actor
 
 
+# ======================================================================
+# Curriculum n_steps
+# ======================================================================
+
+def get_n_steps(training_step, total_steps):
+    """
+    Curriculum sur n_steps pour le bootstrapping des returns.
+
+    - Début (30% des steps) : quasi Monte Carlo pur (n_steps=18).
+      Le value head est mal calibré → on l'expose à des returns MC fiables
+      pour l'amorcer correctement.
+    - Milieu (30-70%) : transition progressive (n_steps=15).
+    - Fin (70%+) : bootstrapping plus agressif (n_steps=10).
+      Le value head est plus précis → on profite de sa prédiction pour
+      réduire la variance et accélérer la convergence.
+
+    Pour des épisodes de 20 coups max, n_steps=18 est quasi-MC pur.
+    """
+    progress = training_step / max(total_steps, 1)
+    if progress < 0.30:
+        return 18
+    elif progress < 0.70:
+        return 15
+    else:
+        return 10
+
+
+# ======================================================================
+# Configuration
+# ======================================================================
+
 if __name__ == '__main__':
     agent_type = 'resnet'
 
     if agent_type == 'mlp':
-        agent_name = 'mlp_agent_1'
+        agent_name   = 'mlp_agent_1'
         agent_config = MLPConfig(
             n_common_hidden_layers=2,
             n_common_neurons_per_layer=512,
@@ -30,7 +66,7 @@ if __name__ == '__main__':
         agent = MLPAgent(name=agent_name, config=agent_config)
 
     elif agent_type == 'resnet':
-        agent_name = 'resnet_agent_1'
+        agent_name   = 'resnet_agent_1'
         agent_config = ResNetConfig(
             num_res_blocks=8,
             num_filters=128,
@@ -51,129 +87,202 @@ if __name__ == '__main__':
 
     agent.build_model(summary=True)
 
-    max_moves = 20
-    puyo_game = PuyoGame(max_moves=max_moves)
+    max_moves  = 20
+    puyo_game  = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
         n_simulations=1000,
+        batch_size=128,              # 1000/128 ≈ 8 rounds — bon équilibre GPU/qualité
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.3,
         dirichlet_epsilon=0.25,
         tau_max=2.5,
         tau_min=0.3,
-        batch_size=32,
         virtual_loss=1.,
-        n_steps=15
+        n_steps=15                   # sera mis à jour dynamiquement par le curriculum
     )
 
     replay_config = ReplayConfig(
-        max_capacity=10000
+        max_capacity=50000
     )
 
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
 
-    # TRAINING / TEST CYCLES
-    n_cpu = 4
-    n_cycles = 2
-    training_cycles = 10
-    collect_cycles = 1
-    gradient_steps_per_cycle = 4
-    buffer_min_length = 5000
+    # ======================================================================
+    # Hyperparamètres d'entraînement
+    # ======================================================================
+    n_cpu                  = 4
+    n_cycles               = 2       # cycles principaux collect → train → test
+    training_steps_per_cycle = 10     # itérations collect+train par cycle
+    gradient_steps         = 4       # gradient steps par itération (batch indépendant à chaque fois)
+    buffer_min_length      = 5000     # transitions minimales avant de commencer à entraîner
+    n_test_games           = 100       # parties de test par cycle
+    save_every_n_cycles    = 5        # sauvegarde tous les N cycles
 
-    collected_rewards = []
+    replay_path_to_dir = '../saved_data/'
+    agent_path_to_dir  = '../saved_agents/'
+    os.makedirs(replay_path_to_dir, exist_ok=True)
+    os.makedirs(agent_path_to_dir, exist_ok=True)
 
+    collected_rewards     = []
+
+    # ======================================================================
+    # Phase de warm-up : remplir le buffer avant tout entraînement
+    # ======================================================================
+    print('=' * 60)
+    print('WARM-UP PHASE')
+    print(f'Target buffer size: {buffer_min_length} transitions')
+    print('=' * 60)
+
+    warmup_batch = 0
+    while len(actor.replay_buffer.observations) < buffer_min_length:
+        rewards = actor.collect_games_parallel(n_cpu=n_cpu)
+        collected_rewards.extend(rewards)
+        warmup_batch += 1
+        current_size = len(actor.replay_buffer.observations)
+        print(f'  Warm-up batch {warmup_batch}: buffer {current_size}/{buffer_min_length}')
+
+    print(f'Warm-up complete — {len(actor.replay_buffer.observations)} transitions in buffer.\n')
+
+    # ======================================================================
+    # Boucle principale collect → train → test
+    # ======================================================================
     t0 = time()
-    for i in range(n_cycles):
-        print(f'CYCLE {i + 1}')
-        batch_counter = 1
-        # SAMPLE COLLECTION AND TRAINING LOOP
-        for _ in range(training_cycles):
-            for _ in range(collect_cycles):
-                t_episode_0 = time()
-                print(f'EPISODE BATCH {batch_counter}')
-                rewards = actor.collect_games_parallel(n_cpu=n_cpu)
-                collected_rewards.extend(rewards)
-                batch_counter += 1
-                t_episode_1 = time()
-                print(f'Episode batch took: {t_episode_1 - t_episode_0} seconds.')
-            if (len(actor.replay_buffer.observations) >= agent_config.batch_size
-                    and len(actor.replay_buffer.observations) >= buffer_min_length):
-                for _ in range(gradient_steps_per_cycle):
-                    actor.train_on_batch()
 
-        # TEST
-        print('TEST GAMES')
-        n_test_games = 100
-        test_best_rewards = []
+    for cycle in range(n_cycles):
+        print('=' * 60)
+        print(f'CYCLE {cycle + 1}/{n_cycles}')
+        print('=' * 60)
+
+        # ----------------------------------------------------------------
+        # Collect + Train
+        # ----------------------------------------------------------------
+        for step in range(training_steps_per_cycle):
+
+            # Collecte
+            t_col = time()
+            rewards = actor.collect_games_parallel(n_cpu=n_cpu)
+            collected_rewards.extend(rewards)
+            t_col = time() - t_col
+
+            # Gradient steps — batch rééchantillonné à chaque fois
+            t_train = time()
+            for _ in range(gradient_steps):
+                actor.train_on_batch(epochs=1, verbose=0)
+            t_train = time() - t_train
+
+            print(
+                f'  Step {step + 1}/{training_steps_per_cycle} | '
+                f'n_steps={actor.mcts_config.n_steps} | '
+                f'buf={len(actor.replay_buffer.observations)} | '
+                f'collect={t_col:.1f}s | train={t_train:.1f}s'
+            )
+
+        # ----------------------------------------------------------------
+        # Test sans MCTS (greedy déterministe)
+        # ----------------------------------------------------------------
+        print(f'\n  TEST ({n_test_games} games, no MCTS)')
+        test_best_chains   = []
         test_total_rewards = []
-        for _ in tqdm(range(n_test_games)):
-            best_reward, total_reward = actor.play_test_game()
-            test_best_rewards.append(best_reward)
+
+        for _ in tqdm(range(n_test_games), ncols=60):
+            best_chain, total_reward = actor.play_test_game()
+            test_best_chains.append(best_chain)
             test_total_rewards.append(total_reward)
-        average_test_best_reward = np.mean(test_best_rewards)
-        average_test_total_reward = np.mean(test_total_rewards)
-        actor.agent.test_scores.append((average_test_best_reward, average_test_total_reward))
+
+        avg_best_chain   = float(np.mean(test_best_chains))
+        avg_total_reward = float(np.mean(test_total_rewards))
+
+        # Distribution des meilleures chaînes
+        chain_counts = {}
+        for c in test_best_chains:
+            chain_counts[c] = chain_counts.get(c, 0) + 1
+        dist_str = '  '.join(
+            f'chain{k}:{v}' for k, v in sorted(chain_counts.items())
+        )
+
+        print(f'  Avg best chain  : {avg_best_chain:.2f}')
+        print(f'  Avg total reward: {avg_total_reward:.2f}')
+        print(f'  Distribution    : {dist_str}')
+
+        actor.agent.test_scores.append((avg_best_chain, avg_total_reward))
+
+        # ----------------------------------------------------------------
+        # Sauvegarde périodique
+        # ----------------------------------------------------------------
+        if (cycle + 1) % save_every_n_cycles == 0:
+            print(f'\n  Saving checkpoint at cycle {cycle + 1}...')
+            actor.agent.save_model(agent_path_to_dir)
+            actor.replay_buffer.save(replay_path_to_dir)
+            with open(os.path.join(replay_path_to_dir, agent_name + '_collected_rewards.pkl'), 'wb') as f:
+                pickle.dump(collected_rewards, f)
+            print('  Checkpoint saved.')
+
+        print()
+
     t1 = time()
+    print(f'\nTotal training time: {(t1 - t0) / 60:.1f} minutes')
 
-    print(f'Time elapsed: {t1 - t0} seconds.')
+    # ======================================================================
+    # Sauvegarde finale
+    # ======================================================================
+    print('Saving final model...')
+    actor.agent.save_model(agent_path_to_dir)
+    actor.replay_buffer.save(replay_path_to_dir)
+    with open(os.path.join(replay_path_to_dir, agent_name + '_collected_rewards.pkl'), 'wb') as f:
+        pickle.dump(collected_rewards, f)
 
-    # training loss plot
-    _, ax = plt.subplots()
-    value_head_loss = [losses[0] for losses in actor.agent.training_loss]
-    ax.semilogy(value_head_loss, label='value head loss')
+    # ======================================================================
+    # Plots
+    # ======================================================================
+
+    # Value head loss
+    fig, ax = plt.subplots()
+    value_losses = [losses[0] for losses in actor.agent.training_loss]
+    ax.semilogy(value_losses, label='value head loss')
     ax.grid()
     ax.legend()
-    ax.set_xlabel('Training steps')
+    ax.set_xlabel('Gradient steps')
     ax.set_ylabel('Loss')
     ax.set_title('Value head loss')
     plt.savefig('./' + agent_name + '_value_loss.png')
+    plt.close()
 
-    _, ax = plt.subplots()
-    policy_head_loss = [losses[1] for losses in actor.agent.training_loss]
-    ax.semilogy(policy_head_loss, label='policy head loss')
+    # Policy head loss
+    fig, ax = plt.subplots()
+    policy_losses = [losses[1] for losses in actor.agent.training_loss]
+    ax.semilogy(policy_losses, label='policy head loss')
     ax.grid()
     ax.legend()
-    ax.set_xlabel('Training steps')
+    ax.set_xlabel('Gradient steps')
     ax.set_ylabel('Loss')
     ax.set_title('Policy head loss')
     plt.savefig('./' + agent_name + '_policy_loss.png')
+    plt.close()
 
-    # test plot
-    _, ax = plt.subplots()
-    test_best_rewards = [test_scores[0] for test_scores in actor.agent.test_scores]
-    test_total_rewards = [test_scores[1] for test_scores in actor.agent.test_scores]
-    ax.plot(test_best_rewards, label='best reward')
-    ax.plot(test_total_rewards, label='total reward')
+    # Test scores : avg best chain + avg total reward
+    fig, ax = plt.subplots()
+    avg_best_chains   = [s[0] for s in actor.agent.test_scores]
+    avg_total_rewards = [s[1] for s in actor.agent.test_scores]
+    ax.plot(avg_best_chains,   label='avg best chain (no MCTS)')
+    ax.plot(avg_total_rewards, label='avg total reward (no MCTS)')
     ax.grid()
     ax.legend()
     ax.set_xlabel('Test cycles')
-    ax.set_ylabel('Average reward')
-    ax.set_title('Average test rewards (no MCTS)')
-    plt.savefig('./' + agent_name + '_test_rewards.png')
+    ax.set_ylabel('Value')
+    ax.set_title('Test scores (greedy, no MCTS)')
+    plt.savefig('./' + agent_name + '_test_scores.png')
+    plt.close()
 
-    _, ax = plt.subplots()
-    test_best_rewards = [test_scores[0] for test_scores in actor.agent.test_scores]
-    ax.plot(test_best_rewards)
-    ax.grid()
-    ax.legend()
-    ax.set_xlabel('Test cycles')
-    ax.set_ylabel('Average reward')
-    ax.set_title('Average best reward per game (no MCTS)')
-    plt.savefig('./' + agent_name + '_test_best_rewards.png')
-
-    _, ax = plt.subplots()
+    # Collected rewards during training
+    fig, ax = plt.subplots()
     ax.plot(collected_rewards)
     ax.grid()
     ax.set_xlabel('Episodes')
-    ax.set_ylabel('Collected rewards')
-    ax.set_title('Rewards collected during training')
+    ax.set_ylabel('Total reward')
+    ax.set_title('Rewards collected during training (with MCTS)')
     plt.savefig('./' + agent_name + '_collected_rewards.png')
+    plt.close()
 
-    # save
-    replay_path_to_dir = '../saved_data/'
-    agent_path_to_dir = '../saved_agents/'
-    actor.agent.save_model(agent_path_to_dir)
-    actor.replay_buffer.save(replay_path_to_dir)
-    with open(os.path.join('../saved_data/', agent_name + '_collected_rewards.pkl'), 'wb') as f:
-        pickle.dump(collected_rewards, f)
+    print('All plots saved.')
