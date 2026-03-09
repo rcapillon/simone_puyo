@@ -418,7 +418,7 @@ class ResNetAgent:
             value, policy = self.model(np.array(inputs))
         elif isinstance(inputs, np.ndarray):
             if inputs.ndim == 3:
-                # Single input: (14, 6, 5) → (1, 14, 6, 5)
+                # Single input: (14, 6, 4) → (1, 14, 6, 4)
                 value, policy = self.model(inputs[np.newaxis, :, :, :])
                 value = value[0, 0]
                 policy = policy[0, :]

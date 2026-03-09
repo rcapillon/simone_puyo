@@ -33,9 +33,6 @@ class Actor:
         self.replay_buffer.trim_buffer()
 
     def collect_game(self):
-        """
-        play a complete episode, storing collected samples in the replay buffer
-        """
         episode_buffer = EpisodeBuffer(self.mcts_config.discount_factor)
         observation = self.reset_game()
 
@@ -78,20 +75,31 @@ class Actor:
             episode_buffer.store_transition(observation, reward, policy)
             observation = next_observation
             root = new_root
-
             step += 1
 
-        if done:
-            if self.game.state.board.check_gameover():
-                terminal_reward = GAMEOVER_REWARD
-                episode_buffer.store_terminal_state(observation, terminal_reward)
+        # Stocke l'état terminal uniquement en cas de game over.
+        # - s_{T+1} est le board avec la cellule gameover remplie → valeur vraie = 0
+        # - r_T (GAMEOVER_REWARD) est déjà stocké dans le store_transition précédent
+        # Ne pas stocker en cas de fin par max_moves : la valeur résiduelle
+        # n'est pas nulle et stocker reward=0 introduirait un biais négatif.
+        if self.game.state.board.check_gameover():
+            episode_buffer.store_terminal_state(observation)
 
         return episode_buffer, total_reward
 
     def collect_games_parallel(self, n_cpu=1):
+        """
+        Collecte n_cpu épisodes en parallèle.
+        Utilise un context manager pour garantir la fermeture du pool
+        même en cas d'exception.
+        """
+        from multiprocessing import Pool
+
+        with Pool(processes=n_cpu) as pool:
+            results = pool.starmap(self.collect_game, [()] * n_cpu)
+
         rewards = []
-        pool = Pool(n_cpu)
-        for episode_buffer, reward in pool.starmap(self.collect_game, [()] * n_cpu):
+        for episode_buffer, reward in results:
             self.replay_buffer.add_episode(episode_buffer)
             self.replay_buffer.trim_buffer()
             rewards.append(reward)
