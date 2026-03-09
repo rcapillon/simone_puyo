@@ -80,8 +80,7 @@ if __name__ == '__main__':
     gradient_steps_per_cycle = 4
     buffer_min_length = 5000
 
-    with open(os.path.join('../saved_data/', agent_name + '_collected_rewards.pkl'), 'rb') as f1:
-        collected_rewards = pickle.load(f1)
+    collected_rewards = []
 
     t0 = time()
     for i in range(n_cycles):
