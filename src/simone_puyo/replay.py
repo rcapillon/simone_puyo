@@ -12,6 +12,7 @@ class ReplayConfig:
     Dataclass for configuring the replay buffer
     """
     max_capacity: int = 1000
+    normalize_returns: bool = True
 
     def __post_init__(self):
         pass
@@ -91,6 +92,12 @@ class ReplayBuffer:
         batch_observations = np.array(self.observations)[indices, :, :, :]
         batch_returns = np.array(self.returns)[indices]
         batch_policies = np.array(self.policies)[indices, :]
+
+        # Normalisation des returns sur le batch
+        if self.config.normalize_returns:
+            mean = batch_returns.mean()
+            std = batch_returns.std() + 1e-8
+            batch_returns = (batch_returns - mean) / std  # ← ajout
 
         return batch_observations, batch_returns, batch_policies
 

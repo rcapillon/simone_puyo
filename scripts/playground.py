@@ -43,8 +43,8 @@ if __name__ == '__main__':
             use_batch_norm=True,
             learning_rate=3e-4,
             batch_size=512,
-            value_loss_weight = 1.,
-            policy_loss_weight = 1.
+            value_loss_weight=1.,
+            policy_loss_weight=1.
         )
         agent = ResNetAgent(name=agent_name, config=agent_config)
 
@@ -69,7 +69,8 @@ if __name__ == '__main__':
     )
 
     replay_config = ReplayConfig(
-        max_capacity=10000
+        max_capacity=10000,
+        normalize_returns=True
     )
 
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
