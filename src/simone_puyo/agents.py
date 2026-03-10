@@ -158,6 +158,10 @@ class ResNetConfig:
     learning_rate: float = 1e-3
     batch_size: int = 256
 
+    # Loss weights
+    value_loss_weight: float = 1.
+    policy_loss_weight: float = 1.
+
     def __post_init__(self):
         pass
 
@@ -334,7 +338,7 @@ class ResNetAgent:
                 'value_head': keras.losses.MeanSquaredError(),
                 'policy_head': keras.losses.CategoricalCrossentropy()
             },
-            loss_weights={'value_head': 1.0, 'policy_head': 1.0}
+            loss_weights={'value_head': self.config.value_loss_weight, 'policy_head': self.config.policy_loss_weight}
         )
 
         if summary:
@@ -354,7 +358,7 @@ class ResNetAgent:
                 'value_head': keras.losses.MeanSquaredError(),
                 'policy_head': keras.losses.CategoricalCrossentropy()
             },
-            loss_weights={'value_head': 1.0, 'policy_head': 1.0}
+            loss_weights={'value_head': self.config.value_loss_weight, 'policy_head': self.config.policy_loss_weight}
         )
 
         # Charger les historiques

@@ -42,7 +42,9 @@ if __name__ == '__main__':
             l2_regularization=1e-4,
             use_batch_norm=True,
             learning_rate=3e-4,
-            batch_size=512
+            batch_size=512,
+            value_loss_weight = 1.,
+            policy_loss_weight = 1.
         )
         agent = ResNetAgent(name=agent_name, config=agent_config)
 
