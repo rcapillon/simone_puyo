@@ -397,14 +397,15 @@ class PuyoGame:
     """
     Class for a complete game of single-player, turn-based Puyo Puyo
     """
-    def __init__(self, max_moves):
+    def __init__(self, max_moves, copy=False):
         self.max_moves = max_moves
 
-        queue = TsumoQueue()
-        queue.start_queue()
-        board = Board()
-        self.state = GameState(board, queue)
-        self.n_step = 0
+        if not copy:
+            queue = TsumoQueue()
+            queue.start_queue()
+            board = Board()
+            self.state = GameState(board, queue)
+            self.n_step = 0
 
     def reset(self):
         """
@@ -417,7 +418,7 @@ class PuyoGame:
         """
         makes a copy of itself, used in MCTS
         """
-        new_game = PuyoGame(self.max_moves)
+        new_game = PuyoGame(self.max_moves, copy=True)
         new_game.n_step = self.n_step
         new_board = Board()
         new_board.num_board[:, :] = self.state.board.num_board[:, :]
