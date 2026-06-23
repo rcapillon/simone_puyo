@@ -86,9 +86,10 @@ class Node:
             ]
 
             if visited_children:
-                # Q = average value over observed chance outcomes
-                Q = np.mean([child.get_value() for child in visited_children])
-                # N_action = total visits through this action (all chance_codes)
+                Q = np.mean([
+                    child.reward + self.config.discount_factor * child.get_value()
+                    for child in visited_children
+                ])
                 N_action = sum(child.N for child in visited_children)
             else:
                 Q = 0.
@@ -126,18 +127,17 @@ class Node:
 
 def backpropagate(node):
     """
-    backpropagates through parent nodes, updating value and visit count
+    Backpropagates through parent nodes, updating value and visit count.
+    Called *after* virtual losses have been undone on the whole path.
     """
-    value = node.reward + node.value
-    node.value_sum += value
-    node.N += 1
-
-    parent = node.parent
-    while parent is not None:
-        value = parent.reward + parent.config.discount_factor * value
-        parent.value_sum += value
-        parent.N += 1
-        parent = parent.parent
+    value = node.value
+    while node is not None:
+        node.value_sum += value
+        node.N += 1
+        parent = node.parent
+        if parent is not None:
+            value = node.reward + node.config.discount_factor * value
+        node = parent
 
 
 def compute_board_fill_ratio(game):
