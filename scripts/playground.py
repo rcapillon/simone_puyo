@@ -37,11 +37,11 @@ if __name__ == '__main__':
             kernel_size=3,
             policy_filters=2,
             policy_hidden_size=128,
-            value_filters=1,
+            value_filters=2,
             value_hidden_size=128,
             l2_regularization=1e-4,
             use_batch_norm=True,
-            learning_rate=3e-4,
+            learning_rate=1e-4,
             batch_size=512,
             value_loss_weight=1.,
             policy_loss_weight=1.
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=1000,
+        n_simulations=10000,
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.3,
@@ -77,10 +77,10 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 2
+    n_cycles = 1
     training_cycles = 10
     collect_cycles = 1
-    gradient_steps_per_cycle = 2
+    gradient_steps_per_cycle = 1
     buffer_min_length = 5000
 
     collected_rewards = []

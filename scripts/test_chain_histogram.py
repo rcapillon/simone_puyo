@@ -13,6 +13,7 @@ from src.simone_puyo.utils import random_argmax_in_array
 if __name__ == '__main__':
     agent_type = 'resnet'
     with_mcts = True
+    n_test_games = 100
 
     if agent_type == 'resnet':
         agent = ResNetAgent(name='resnet_agent_1')
@@ -29,13 +30,15 @@ if __name__ == '__main__':
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=1000,
+        n_simulations=10000,
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
-        tau_max=0.,
-        tau_min=0.,
+        dirichlet_alpha=0.3,
+        dirichlet_epsilon=0.25,
+        tau_max=1.,
+        tau_min=1.,
         batch_size=32,
-        virtual_loss=1.
+        virtual_loss=2.
     )
 
     replay_config = ReplayConfig()
@@ -43,8 +46,8 @@ if __name__ == '__main__':
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
 
     chains = []
-    n_games = 100
-    for i in tqdm(range(n_games)):
+    gameovers = 0
+    for i in tqdm(range(n_test_games)):
         observation = actor.reset_game()
         root = Node(
             reward=0.,
@@ -55,6 +58,7 @@ if __name__ == '__main__':
             config=actor.mcts_config
         )
         done = False
+        best_chain = 0.
         while not done:
             legal_actions = actor.game.get_legal_actions()
             if with_mcts:
@@ -67,11 +71,11 @@ if __name__ == '__main__':
                 _, reward, done = actor.game.step(action)
                 if reward != 0.:
                     if reward == GAMEOVER_REWARD:
-                        chains.append(-1)
+                        gameovers += 1
                     else:
-                        chains.append(int(np.round(
-                            ((reward + 1) ** 2 - 1) ** (1 / 2.5)))
-                        )
+                        chain = int(np.round(((reward + 1) ** 2 - 1) ** (1 / 2.5)))
+                        if chain > best_chain:
+                            best_chain = chain
 
                 try:
                     new_root = root.children[(action, chance_code)]
@@ -97,25 +101,29 @@ if __name__ == '__main__':
 
                 if reward != 0.:
                     if reward == GAMEOVER_REWARD:
-                        chains.append(-1)
+                        gameovers += 1
                     else:
-                        chains.append(int(np.round(
-                            ((reward + 1) ** 2 - 1) ** (1 / 2.5)))
-                        )
+                        chain = int(np.round(((reward + 1) ** 2 - 1) ** (1 / 2.5)))
+                        if chain > best_chain:
+                            best_chain = chain
+
+        chains.append(best_chain)
 
     fig, ax = plt.subplots(figsize=(14, 5))
-    bins_edges = np.arange(-1.5, 19.6, 1)  # bords à -1.5, -0.5, 0.5, ..., 19.5
+    bins_edges = np.arange(-0.5, 19.6, 1)  # bords à -0.5, 0.5, ..., 19.5
     counts, _ = np.histogram(chains, bins=bins_edges)
     probabilities = counts / counts.sum()
-    bin_centers = np.arange(-1, 20, 1)
+    bin_centers = np.arange(0, 20, 1)
     ax.bar(bin_centers, probabilities, width=1.0, color="steelblue", edgecolor="white", linewidth=0.8)
     ax.set_xticks(bin_centers)
 
     ax.set_xlabel("Chain length", fontsize=12)
     ax.set_ylabel("Probability", fontsize=12)
-    ax.set_title(f'Histogram of chains by {agent_type} during {n_games} games (mcts: {with_mcts})', fontsize=13)
+    ax.set_title(f'Histogram of chains by {agent_type} during {n_test_games} games (mcts: {with_mcts})\n'
+                 f'Game overs %: {100*gameovers/n_test_games}%', fontsize=13)
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f"{y:.0%}"))
-    ax.set_xlim(-2, 20)
+    ax.set_xlim(-1, 20)
+    ax.set_ylim(0, 1)
 
     plt.tight_layout()
     if with_mcts:
