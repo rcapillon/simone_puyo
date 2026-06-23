@@ -123,9 +123,11 @@ class Node:
             visited_children = [
                 child for (a, _), child in self.children.items() if a == action
             ]
-
             if visited_children:
-                Q = np.mean([child.get_value() for child in visited_children])
+                Q = np.mean([
+                    child.reward + self.config.discount_factor * child.get_value()
+                    for child in visited_children
+                ])
                 N_action = sum(child.N for child in visited_children)
             else:
                 Q = 0.
@@ -204,8 +206,16 @@ def _evaluate_batch(nodes):
     policies = np.array(policies)           # shape (B, n_actions)
 
     for node, value, policy in zip(nodes, values, policies):
-        node.value        = float(value)
-        node.policy       = policy          # 1-D numpy array of length n_actions
+        legal = node.legal_actions
+        masked_policy = np.zeros_like(policy)
+        masked_policy[legal] = policy[legal]
+        total = masked_policy.sum()
+        if total > 1e-8:
+            masked_policy /= total
+        else:
+            masked_policy[legal] = 1.0 / len(legal)
+        node.value = float(value)
+        node.policy = masked_policy
         node.is_evaluated = True
 
 
@@ -255,16 +265,14 @@ def backpropagate(node):
     Backpropagates through parent nodes, updating value and visit count.
     Called *after* virtual losses have been undone on the whole path.
     """
-    value = node.reward + node.value
-    node.value_sum += value
-    node.N += 1
-
-    parent = node.parent
-    while parent is not None:
-        value = parent.reward + parent.config.discount_factor * value
-        parent.value_sum += value
-        parent.N += 1
-        parent = parent.parent
+    value = node.value
+    while node is not None:
+        node.value_sum += value
+        node.N += 1
+        parent = node.parent
+        if parent is not None:
+            value = node.reward + node.config.discount_factor * value
+        node = parent
 
 
 # ======================================================================

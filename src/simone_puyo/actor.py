@@ -56,10 +56,12 @@ class Actor:
             _, policy, root = run_mcts(self.agent, self.game, config=self.mcts_config, root=root, training=True)
             random_index = random_argmax_in_array(policy[legal_actions])
             action = legal_actions[random_index]
+
+            next_observation, reward, done = self.game.step(action)
+
             new_tsumo = [int(p) for p in self.game.state.queue.queue[2, :]]
             chance_code = get_chance_code(new_tsumo)
 
-            next_observation, reward, done = self.game.step(action)
             total_reward += reward
 
             try:
