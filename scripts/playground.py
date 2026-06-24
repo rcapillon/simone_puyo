@@ -77,7 +77,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 1
+    n_cycles = 6
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 1
