@@ -8,35 +8,33 @@ from .puyo import GAMEOVER_REWARD
 
 @dataclass
 class ReplayConfig:
-    """
-    Dataclass for configuring the replay buffer
-    """
     max_capacity: int = 1000
-    normalize_returns: bool = True
+    normalize_returns: bool = False    # désactivé : incompatible en l'état avec l'échelle de node.value en MCTS
+    value_target_mix: float = 0.5      # 0 = retour Monte-Carlo pur, 1 = valeur MCTS pure
 
     def __post_init__(self):
-        pass
+        assert 0.0 <= self.value_target_mix <= 1.0, "value_target_mix doit être dans [0, 1]"
 
 
 class EpisodeBuffer:
     """
     Class for storing a single episode (one whole puyo game)
     """
+
     def __init__(self, discount_factor):
         self.observations = []
         self.rewards = []
         self.returns = []
         self.policies = []
+        self.values = []
 
         self.discount_factor = discount_factor
 
-    def store_transition(self, observation, reward, policy):
-        """
-        store a single transition
-        """
+    def store_transition(self, observation, reward, policy, value):
         self.observations.append(observation)
         self.rewards.append(reward)
         self.policies.append(policy)
+        self.values.append(value)
 
     def compute_returns(self):
         """
@@ -61,12 +59,16 @@ class ReplayBuffer:
         self.policies = []
 
     def add_episode(self, episode):
-        """
-        add a single episode to the buffer
-        """
         episode.compute_returns()
+
+        mix = self.config.value_target_mix
+        blended_targets = [
+            (1 - mix) * mc_return + mix * mcts_value
+            for mc_return, mcts_value in zip(episode.returns, episode.values)
+        ]
+
         self.observations.extend(episode.observations)
-        self.returns.extend(episode.returns)
+        self.returns.extend(blended_targets)
         self.policies.extend(episode.policies)
 
     def trim_buffer(self):
@@ -81,23 +83,20 @@ class ReplayBuffer:
             self.policies = self.policies[n_removed:]
 
     def sample_batch(self, batch_size):
-        """
-        sample a random batch of training examples
-        """
         current_size = len(self.observations)
         if current_size < batch_size:
             batch_size = current_size
         indices = np.random.choice(range(current_size), size=batch_size, replace=False)
 
         batch_observations = np.array(self.observations)[indices, :, :, :]
-        batch_returns = np.array(self.returns)[indices]
+        all_returns = np.array(self.returns)
+        batch_returns = all_returns[indices]
         batch_policies = np.array(self.policies)[indices, :]
 
-        # Normalisation des returns sur le batch
         if self.config.normalize_returns:
-            mean = batch_returns.mean()
-            std = batch_returns.std() + 1e-8
-            batch_returns = (batch_returns - mean) / std  # ← ajout
+            mean = all_returns.mean()
+            std = all_returns.std() + 1e-8
+            batch_returns = (batch_returns - mean) / std
 
         return batch_observations, batch_returns, batch_policies
 
