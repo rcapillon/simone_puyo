@@ -58,7 +58,7 @@ if __name__ == '__main__':
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=500,
+        n_simulations=10000,
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.3,
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     )
 
     replay_config = ReplayConfig(
-        max_capacity=100000,
+        max_capacity=30000,
         normalize_returns=True
     )
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 60  # 6 cycles take roughly 1h
+    n_cycles = 1  #
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 20
@@ -103,14 +103,14 @@ if __name__ == '__main__':
                 batch_counter += 1
                 t_episode_1 = time()
                 print(f'Episode batch took: {t_episode_1 - t_episode_0} seconds.')
-            if (len(actor.replay_buffer.observations) >= agent_config.batch_size
-                    and len(actor.replay_buffer.observations) >= buffer_min_length):
+            if (actor.replay_buffer.__len__() >= agent_config.batch_size
+                    and actor.replay_buffer.__len__() >= buffer_min_length):
                 for _ in range(gradient_steps_per_cycle):
                     actor.train_on_batch()
 
         # TEST
         print('TEST GAMES')
-        n_test_games = 100
+        n_test_games = 1000
         test_best_rewards = []
         test_total_rewards = []
         for _ in tqdm(range(n_test_games)):
