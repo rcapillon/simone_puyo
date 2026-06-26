@@ -48,68 +48,106 @@ class EpisodeBuffer:
 
 class ReplayBuffer:
     """
-    Class for the Replay Buffer
+    Class for the Replay Buffer.
+    Stockage en tableaux numpy pre-alloues (buffer circulaire) : plus de
+    reconstruction complete a partir de listes Python a chaque sample_batch().
     """
     def __init__(self, name, config=ReplayConfig()):
         self.name = name
         self.config = config
 
-        self.observations = []
-        self.returns = []
-        self.policies = []
+        self._observations = None   # alloues paresseusement au premier add_episode
+        self._returns = None
+        self._policies = None
+
+        self._write_idx = 0   # prochaine position d'ecriture dans le buffer circulaire
+        self._size = 0        # nombre d'entrees valides actuellement (<= max_capacity)
+
+    def __len__(self):
+        return self._size
+
+    def _allocate(self, observation_shape, n_actions):
+        capacity = self.config.max_capacity
+        self._observations = np.zeros((capacity,) + observation_shape, dtype=np.float32)
+        self._returns = np.zeros(capacity, dtype=np.float32)
+        self._policies = np.zeros((capacity, n_actions), dtype=np.float32)
 
     def add_episode(self, episode):
+        """
+        ajoute un episode complet au buffer circulaire (ecriture vectorisee,
+        avec gestion du wrap-around si l'episode chevauche la fin du tableau)
+        """
         episode.compute_returns()
 
+        observations = np.asarray(episode.observations, dtype=np.float32)
+        policies = np.asarray(episode.policies, dtype=np.float32)
+        returns = np.asarray(episode.returns, dtype=np.float32)
+        values = np.asarray(episode.values, dtype=np.float32)
+
         mix = self.config.value_target_mix
-        blended_targets = [
-            (1 - mix) * mc_return + mix * mcts_value
-            for mc_return, mcts_value in zip(episode.returns, episode.values)
-        ]
+        blended_targets = (1 - mix) * returns + mix * values
 
-        self.observations.extend(episode.observations)
-        self.returns.extend(blended_targets)
-        self.policies.extend(episode.policies)
+        n_new = len(observations)
+        if n_new == 0:
+            return
 
-    def trim_buffer(self):
-        """
-        ensures the replay buffer does not go over maximum capacity
-        """
-        current_size = len(self.observations)
-        if current_size > self.config.max_capacity:
-            n_removed = current_size - self.config.max_capacity
-            self.observations = self.observations[n_removed:]
-            self.returns = self.returns[n_removed:]
-            self.policies = self.policies[n_removed:]
+        if self._observations is None:
+            self._allocate(observations.shape[1:], policies.shape[1])
+
+        capacity = self.config.max_capacity
+        if n_new > capacity:
+            # cas degenere : un seul episode plus grand que toute la capacite
+            observations = observations[-capacity:]
+            policies = policies[-capacity:]
+            blended_targets = blended_targets[-capacity:]
+            n_new = capacity
+
+        end_idx = self._write_idx + n_new
+        if end_idx <= capacity:
+            self._observations[self._write_idx:end_idx] = observations
+            self._returns[self._write_idx:end_idx] = blended_targets
+            self._policies[self._write_idx:end_idx] = policies
+        else:
+            first_part = capacity - self._write_idx
+            second_part = n_new - first_part
+
+            self._observations[self._write_idx:] = observations[:first_part]
+            self._returns[self._write_idx:] = blended_targets[:first_part]
+            self._policies[self._write_idx:] = policies[:first_part]
+
+            self._observations[:second_part] = observations[first_part:]
+            self._returns[:second_part] = blended_targets[first_part:]
+            self._policies[:second_part] = policies[first_part:]
+
+        self._write_idx = end_idx % capacity
+        self._size = min(self._size + n_new, capacity)
 
     def sample_batch(self, batch_size):
-        current_size = len(self.observations)
-        if current_size < batch_size:
-            batch_size = current_size
-        indices = np.random.choice(range(current_size), size=batch_size, replace=False)
+        if self._size == 0:
+            raise ValueError("Le replay buffer est vide.")
 
-        batch_observations = np.array(self.observations)[indices, :, :, :]
-        all_returns = np.array(self.returns)
-        batch_returns = all_returns[indices]
-        batch_policies = np.array(self.policies)[indices, :]
+        batch_size = min(batch_size, self._size)
+        indices = np.random.choice(self._size, size=batch_size, replace=False)
+
+        batch_observations = self._observations[indices]
+        batch_returns = self._returns[indices]
+        batch_policies = self._policies[indices]
 
         if self.config.normalize_returns:
-            mean = all_returns.mean()
-            std = all_returns.std() + 1e-8
+            valid_returns = self._returns[:self._size]
+            mean = valid_returns.mean()
+            std = valid_returns.std() + 1e-8
             batch_returns = (batch_returns - mean) / std
 
         return batch_observations, batch_returns, batch_policies
 
     def save(self, path_to_dir):
-        """
-        save replay buffer data to pickle file
-        """
         with open(os.path.join(path_to_dir, self.name + '_replay_buffer.pkl'), 'wb') as f1:
-            pickle.dump((self.observations, self.returns, self.policies), f1)
+            pickle.dump(
+                (self._observations, self._returns, self._policies, self._write_idx, self._size),
+                f1
+            )
 
     def load(self, path_to_dir):
-        """
-        load replay buffer data from pickle file
-        """
         with open(os.path.join(path_to_dir, self.name + '_replay_buffer.pkl'), 'rb') as f1:
-            self.observations, self.returns, self.policies = pickle.load(f1)
+            self._observations, self._returns, self._policies, self._write_idx, self._size = pickle.load(f1)

@@ -30,7 +30,6 @@ class Actor:
         load replay buffer memory from pickle file
         """
         self.replay_buffer.load(path_to_dir)
-        self.replay_buffer.trim_buffer()
 
     def collect_game(self):
         """
@@ -94,7 +93,6 @@ class Actor:
         pool = Pool(n_cpu)
         for episode_buffer, reward in pool.starmap(self.collect_game, [()] * n_cpu):
             self.replay_buffer.add_episode(episode_buffer)
-            self.replay_buffer.trim_buffer()
             rewards.append(reward)
 
         return rewards
