@@ -57,7 +57,7 @@ if __name__ == '__main__':
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=10000,
+        n_simulations=500,
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.3,
@@ -69,7 +69,7 @@ if __name__ == '__main__':
     )
 
     replay_config = ReplayConfig(
-        max_capacity=10000,
+        max_capacity=100000,
         normalize_returns=True
     )
 
@@ -77,10 +77,10 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_cpu = 4
-    n_cycles = 6
+    n_cycles = 5
     training_cycles = 10
     collect_cycles = 1
-    gradient_steps_per_cycle = 1
+    gradient_steps_per_cycle = 20
     buffer_min_length = 5000
 
     collected_rewards = []
