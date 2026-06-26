@@ -95,29 +95,43 @@ def array_num2onehot(array):
     return onehot_array
 
 
+# def find_placing_index_vectorized(board):
+#     """
+#     Find the lowest available space in all board columns at once.
+#     Returns array of indices of shape (6,)
+#     """
+#     # For each column, find first non-zero from bottom
+#     # If column is empty, return nrow (13)
+#     # If column is full, return -1
+#     nrow = board.shape[0]
+#     indices = np.zeros(6, dtype=np.int32)
+#
+#     for col in range(6):
+#         column = board[:, col]
+#         # Find first non-zero element
+#         nonzero_idx = np.where(column != 0)[0]
+#         if len(nonzero_idx) == 0:
+#             # Column is empty
+#             indices[col] = nrow - 1
+#         else:
+#             # Place just above first non-zero
+#             indices[col] = nonzero_idx[0] - 1
+#
+#     return indices
+
+
 def find_placing_index_vectorized(board):
     """
     Find the lowest available space in all board columns at once.
     Returns array of indices of shape (6,)
     """
-    # For each column, find first non-zero from bottom
-    # If column is empty, return nrow (13)
-    # If column is full, return -1
     nrow = board.shape[0]
-    indices = np.zeros(6, dtype=np.int32)
-
-    for col in range(6):
-        column = board[:, col]
-        # Find first non-zero element
-        nonzero_idx = np.where(column != 0)[0]
-        if len(nonzero_idx) == 0:
-            # Column is empty
-            indices[col] = nrow - 1
-        else:
-            # Place just above first non-zero
-            indices[col] = nonzero_idx[0] - 1
-
-    return indices
+    nonzero = (board != 0)
+    has_any = nonzero.any(axis=0)
+    # argmax sur un booleen renvoie l'indice du premier True ; repli sur nrow
+    # si la colonne est entierement vide (aucun True trouve).
+    first_nonzero = np.where(has_any, nonzero.argmax(axis=0), nrow)
+    return (first_nonzero - 1).astype(np.int32)
 
 
 def get_legal_actions(board):

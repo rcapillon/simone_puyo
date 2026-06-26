@@ -71,6 +71,7 @@ class Node:
         self.is_evaluated = done   # terminal nodes are considered already evaluated
 
         self.children = {}
+        self.children_by_action = {}
 
     # ------------------------------------------------------------------
     # Virtual loss helpers
@@ -120,9 +121,7 @@ class Node:
         UCT_scores = {}
 
         for action in self.legal_actions:
-            visited_children = [
-                child for (a, _), child in self.children.items() if a == action
-            ]
+            visited_children = self.children_by_action.get(action, [])
             if visited_children:
                 Q = np.mean([
                     child.reward + self.config.discount_factor * child.get_value()
@@ -152,7 +151,7 @@ class Node:
             _, reward, done = new_game.step(action)
             new_game.state.queue.insert_last_in_queue(chance_code)
 
-            self.children[key] = Node(
+            new_child = Node(
                 reward=reward,
                 done=done,
                 agent=self.agent,
@@ -160,6 +159,8 @@ class Node:
                 parent=self,
                 config=self.config
             )
+            self.children[key] = new_child
+            self.children_by_action.setdefault(action, []).append(new_child)
 
         return self.children[key]
 
