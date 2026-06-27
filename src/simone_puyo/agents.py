@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import tensorflow as tf
 import keras
 import pickle
 from dataclasses import dataclass
@@ -172,6 +173,7 @@ class ResNetAgent:
         self.config = config
 
         self.model = None
+        self._predict_fn = None
 
         self.training_loss = []
         self.test_scores = []
@@ -341,6 +343,8 @@ class ResNetAgent:
             loss_weights={'value_head': self.config.value_loss_weight, 'policy_head': self.config.policy_loss_weight}
         )
 
+        self._build_predict_fn()
+
         if summary:
             self.model.summary()
 
@@ -360,6 +364,8 @@ class ResNetAgent:
             },
             loss_weights={'value_head': self.config.value_loss_weight, 'policy_head': self.config.policy_loss_weight}
         )
+
+        self._build_predict_fn()
 
         # Charger les historiques
         loss_path = os.path.join(path_to_model_dir, str(self.name) + '_training_loss.pkl')
@@ -413,22 +419,34 @@ class ResNetAgent:
 
         return history
 
+    def _build_predict_fn(self):
+        """
+        Compile l'appel reseau en graphe TF, trace une seule fois grace a une
+        dimension de batch dynamique (None), reutilise ensuite pour n'importe
+        quelle taille de batch sans retracage.
+        """
+        input_shape = self.model.input_shape[1:]  # (14, 6, 5), sans la dim de batch
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=(None,) + input_shape, dtype=tf.float32)])
+        def predict_fn(inputs):
+            return self.model(inputs, training=False)
+
+        self._predict_fn = predict_fn
+
     def __call__(self, inputs):
         """
         Inference : retourne (value, policy)
-        Compatible avec votre interface actuelle
         """
         if isinstance(inputs, list):
-            value, policy = self.model(np.array(inputs))
+            inputs = np.asarray(inputs, dtype=np.float32)
+            value, policy = self._predict_fn(inputs)
         elif isinstance(inputs, np.ndarray):
             if inputs.ndim == 3:
-                # Single input: (14, 6, 5) → (1, 14, 6, 5)
-                value, policy = self.model(inputs[np.newaxis, :, :, :])
+                value, policy = self._predict_fn(inputs[np.newaxis, :, :, :].astype(np.float32))
                 value = value[0, 0]
                 policy = policy[0, :]
             elif inputs.ndim == 4:
-                # Batch input
-                value, policy = self.model(inputs)
+                value, policy = self._predict_fn(inputs.astype(np.float32))
             else:
                 raise ValueError('Input array should have 3 or 4 dimensions.')
         else:
