@@ -1,5 +1,5 @@
 import numpy as np
-from multiprocessing import Pool
+from concurrent.futures import ThreadPoolExecutor
 
 from .mcts_batched import Node, run_mcts
 from .utils import random_argmax_in_array
@@ -31,18 +31,23 @@ class Actor:
         """
         self.replay_buffer.load(path_to_dir)
 
-    def collect_game(self):
+    def collect_game(self, game=None):
         """
-        play a complete episode, storing collected samples in the replay buffer
+        play a complete episode, storing collected samples in the replay buffer.
+        Si `game` est fourni, joue sur cette instance independante (utile pour
+        le self-play parallele) ; sinon, utilise self.game comme avant.
         """
+        if game is None:
+            game = self.game
+
         episode_buffer = EpisodeBuffer(self.mcts_config.discount_factor)
-        observation = self.reset_game()
+        observation = game.reset()
 
         root = Node(
             reward=0.,
             done=False,
             agent=self.agent,
-            game=self.game,
+            game=game,
             parent=None,
             config=self.mcts_config
         )
@@ -52,15 +57,13 @@ class Actor:
         done = False
         while not done:
             legal_actions = root.legal_actions
-            value, policy, root = run_mcts(self.agent, self.game, config=self.mcts_config, root=root, training=True)
+            value, policy, root = run_mcts(self.agent, game, config=self.mcts_config, root=root, training=True)
             random_index = random_argmax_in_array(policy[legal_actions])
             action = legal_actions[random_index]
 
-            next_observation, reward, done = self.game.step(action)
-
-            new_tsumo = [int(p) for p in self.game.state.queue.queue[2, :]]
+            next_observation, reward, done = game.step(action)
+            new_tsumo = [int(p) for p in game.state.queue.queue[2, :]]
             chance_code = get_chance_code(new_tsumo)
-
             total_reward += reward
 
             try:
@@ -71,7 +74,7 @@ class Actor:
                     reward=reward,
                     done=done,
                     agent=self.agent,
-                    game=self.game,
+                    game=game,
                     parent=None,
                     config=self.mcts_config
                 )
@@ -88,10 +91,24 @@ class Actor:
 
         return episode_buffer, total_reward
 
-    def collect_games_parallel(self, n_cpu=1):
+    def collect_games_parallel(self, n_workers=1):
+        """
+        Joue n_workers parties en parallele via des threads (pas des process) :
+        le modele/agent est partage en memoire sans etre serialise -- ce qui
+        evite le probleme de pickling de predict_fn -- et chaque partie recoit
+        sa propre instance de jeu independante pour eviter toute concurrence
+        d'ecriture sur self.game.
+        """
+
+        def _play_one_game():
+            local_game = type(self.game)(self.game.max_moves)
+            return self.collect_game(game=local_game)
+
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            results = list(executor.map(lambda _: _play_one_game(), range(n_workers)))
+
         rewards = []
-        pool = Pool(n_cpu)
-        for episode_buffer, reward in pool.starmap(self.collect_game, [()] * n_cpu):
+        for episode_buffer, reward in results:
             self.replay_buffer.add_episode(episode_buffer)
             rewards.append(reward)
 
