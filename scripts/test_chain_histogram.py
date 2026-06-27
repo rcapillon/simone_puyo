@@ -11,7 +11,7 @@ from src.simone_puyo.utils import random_argmax_in_array
 
 
 if __name__ == '__main__':
-    agent_type = 'resnet'
+    agent_type = 'mlp'
     with_mcts = True
     n_test_games = 100
 
