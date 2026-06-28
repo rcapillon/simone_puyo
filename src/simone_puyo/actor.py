@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from .mcts_batched import Node, run_mcts
 from .utils import random_argmax_in_array
 from .replay import ReplayBuffer, EpisodeBuffer
-from .puyo import GAMEOVER_REWARD, get_chance_code
+from .puyo import get_chance_code
 
 
 class Actor:
@@ -119,7 +119,7 @@ class Actor:
         train agent for a single step from a random sample batch
         """
         batch_observations, batch_returns, batch_policies = self.replay_buffer.sample_batch(
-            self.agent_config.batch_size
+            self.agent.config.batch_size
         )
         self.agent.train(batch_observations, batch_returns, batch_policies, epochs=epochs, verbose=verbose)
 
