@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.ndimage import label
+from numba import njit
 import matplotlib.pyplot as plt
 import matplotlib.colors
 
@@ -134,33 +134,136 @@ def find_placing_index_vectorized(board):
     return (first_nonzero - 1).astype(np.int32)
 
 
+@njit(cache=True)
+def _find_chain_removals(subboard):
+    """
+    Detecte, pour TOUTES les couleurs en une seule passe (chaque cellule
+    n'appartient qu'a une couleur), les composantes connexes (4-connexite)
+    de taille >= 4. Remplace scipy.ndimage.label, specialise pour ce plateau.
+    Retourne (has_chain, remove_mask).
+    """
+    nrow, ncol = subboard.shape
+    visited = np.zeros((nrow, ncol), dtype=np.bool_)
+    remove_mask = np.zeros((nrow, ncol), dtype=np.bool_)
+    has_chain = False
+
+    stack_r = np.empty(nrow * ncol, dtype=np.int32)
+    stack_c = np.empty(nrow * ncol, dtype=np.int32)
+    comp_r = np.empty(nrow * ncol, dtype=np.int32)
+    comp_c = np.empty(nrow * ncol, dtype=np.int32)
+
+    for r0 in range(nrow):
+        for c0 in range(ncol):
+            color = subboard[r0, c0]
+            if color == 0 or visited[r0, c0]:
+                continue
+
+            size = 0
+            sp = 0
+            stack_r[sp] = r0
+            stack_c[sp] = c0
+            sp += 1
+            visited[r0, c0] = True
+
+            while sp > 0:
+                sp -= 1
+                r = stack_r[sp]
+                c = stack_c[sp]
+                comp_r[size] = r
+                comp_c[size] = c
+                size += 1
+
+                if r + 1 < nrow and not visited[r + 1, c] and subboard[r + 1, c] == color:
+                    visited[r + 1, c] = True; stack_r[sp] = r + 1; stack_c[sp] = c; sp += 1
+                if r - 1 >= 0 and not visited[r - 1, c] and subboard[r - 1, c] == color:
+                    visited[r - 1, c] = True; stack_r[sp] = r - 1; stack_c[sp] = c; sp += 1
+                if c + 1 < ncol and not visited[r, c + 1] and subboard[r, c + 1] == color:
+                    visited[r, c + 1] = True; stack_r[sp] = r; stack_c[sp] = c + 1; sp += 1
+                if c - 1 >= 0 and not visited[r, c - 1] and subboard[r, c - 1] == color:
+                    visited[r, c - 1] = True; stack_r[sp] = r; stack_c[sp] = c - 1; sp += 1
+
+            if size >= 4:
+                has_chain = True
+                for i in range(size):
+                    remove_mask[comp_r[i], comp_c[i]] = True
+
+    return has_chain, remove_mask
+
+
+@njit(cache=True)
+def _apply_gravity_numba(board):
+    """
+    Compacte chaque colonne vers le bas en preservant l'ordre relatif des
+    elements non nuls. Remplace la version numpy (concatenate par colonne).
+    Modifie `board` en place et le retourne.
+    """
+    nrow, ncol = board.shape
+    for c in range(ncol):
+        write_idx = nrow - 1
+        for r in range(nrow - 1, -1, -1):
+            if board[r, c] != 0:
+                if write_idx != r:
+                    board[write_idx, c] = board[r, c]
+                    board[r, c] = 0
+                write_idx -= 1
+    return board
+
+
+@njit(cache=True)
+def _legal_actions_mask_numba(top_row):
+    """
+    Retourne un masque booleen de taille 22 (legal=True) a partir de la
+    ligne du haut jouable (6 colonnes).
+    """
+    mask = np.ones(22, dtype=np.bool_)
+    for col in range(6):
+        if top_row[col] != 0:
+            mask[col] = False
+            mask[col + 6] = False
+    for move in range(12, 17):
+        col1 = move - 12
+        col2 = col1 + 1
+        if top_row[col1] != 0 or top_row[col2] != 0:
+            mask[move] = False
+            mask[move + 5] = False
+    return mask
+
+
+# def get_legal_actions(board):
+#     """
+#     Return a list of all legal moves on the current state of the board.
+#     """
+#     # Start with all moves legal
+#     legal_actions = list(range(22))
+#
+#     # Check top row for blocked columns
+#     top_row = board[1, :]
+#     blocked_cols = np.where(top_row != 0)[0]
+#
+#     illegal_actions = []
+#
+#     # Vertical moves (0-11) are illegal if column is full
+#     for col in blocked_cols:
+#         illegal_actions.extend([col, col + 6])
+#
+#     # Horizontal moves (12-21) are illegal if one column is full
+#     for move in range(12, 17):
+#         col1 = move - 12
+#         col2 = col1 + 1
+#         if board[1, col1] != 0 or board[1, col2] != 0:
+#             illegal_actions.extend([move, move + 5])
+#
+#     legal_actions = [move for move in legal_actions if move not in illegal_actions]
+#
+#     return legal_actions
+
+
 def get_legal_actions(board):
     """
     Return a list of all legal moves on the current state of the board.
     """
-    # Start with all moves legal
-    legal_actions = list(range(22))
-
-    # Check top row for blocked columns
-    top_row = board[1, :]
-    blocked_cols = np.where(top_row != 0)[0]
-
-    illegal_actions = []
-
-    # Vertical moves (0-11) are illegal if column is full
-    for col in blocked_cols:
-        illegal_actions.extend([col, col + 6])
-
-    # Horizontal moves (12-21) are illegal if one column is full
-    for move in range(12, 17):
-        col1 = move - 12
-        col2 = col1 + 1
-        if board[1, col1] != 0 or board[1, col2] != 0:
-            illegal_actions.extend([move, move + 5])
-
-    legal_actions = [move for move in legal_actions if move not in illegal_actions]
-
-    return legal_actions
+    mask = _legal_actions_mask_numba(board[1, :])
+    return np.flatnonzero(mask).tolist()
 
 
 class TsumoQueue:
@@ -290,59 +393,78 @@ class Board:
         """
         self.onehot_board = array_num2onehot(self.num_board)
 
+    # def gravity(self):
+    #     """
+    #     Apply gravity to the current state of the board.
+    #     """
+    #     # For each column, move all non-zero elements to the bottom
+    #     for col_idx in range(self.ncol):
+    #         column = self.num_board[:, col_idx]
+    #         # Get non-zero elements
+    #         nonzero_elements = column[column != 0]
+    #         # Create new column with zeros at top, non-zeros at bottom
+    #         n_nonzero = len(nonzero_elements)
+    #         n_zeros = self.nrow - n_nonzero
+    #         new_column = np.concatenate([np.zeros(n_zeros, dtype=np.int32), nonzero_elements])
+    #         self.num_board[:, col_idx] = new_column
+
     def gravity(self):
         """
         Apply gravity to the current state of the board.
         """
-        # For each column, move all non-zero elements to the bottom
-        for col_idx in range(self.ncol):
-            column = self.num_board[:, col_idx]
-            # Get non-zero elements
-            nonzero_elements = column[column != 0]
-            # Create new column with zeros at top, non-zeros at bottom
-            n_nonzero = len(nonzero_elements)
-            n_zeros = self.nrow - n_nonzero
-            new_column = np.concatenate([np.zeros(n_zeros, dtype=np.int32), nonzero_elements])
-            self.num_board[:, col_idx] = new_column
+        _apply_gravity_numba(self.num_board)
+
+    # def chain_step(self):
+    #     """
+    #     Resolve one step of the chain on the current board.
+    #     """
+    #     has_chain = False
+    #
+    #     # Work on subboard (excluding top row for game over cell)
+    #     subboard = self.num_board[1:, :]
+    #
+    #     # Process all 4 colors in parallel
+    #     all_remove_indices = []
+    #
+    #     for color in range(1, 5):
+    #         # Create binary mask for this color
+    #         color_mask = (subboard == color).astype(np.int32)
+    #
+    #         # Label connected components
+    #         labeled_arr, n_components = label(color_mask)
+    #
+    #         # Find components with 4+ puyos
+    #         for comp_id in range(1, n_components + 1):
+    #             component_mask = (labeled_arr == comp_id)
+    #             group_size = np.sum(component_mask)
+    #
+    #             if group_size >= 4:
+    #                 has_chain = True
+    #                 # Get indices of this component
+    #                 indices = np.argwhere(component_mask)
+    #                 all_remove_indices.extend(indices.tolist())
+    #
+    #     # Remove all marked puyos at once (vectorized)
+    #     if all_remove_indices:
+    #         for idx_pair in all_remove_indices:
+    #             # +1 because we're working on subboard (row 1+)
+    #             self.num_board[idx_pair[0] + 1, idx_pair[1]] = 0
+    #
+    #     # Apply gravity
+    #     if has_chain:
+    #         self.gravity()
+    #
+    #     return has_chain
 
     def chain_step(self):
         """
         Resolve one step of the chain on the current board.
         """
-        has_chain = False
+        subboard = self.num_board[1:, :]  # vue, pas une copie
+        has_chain, remove_mask = _find_chain_removals(subboard)
 
-        # Work on subboard (excluding top row for game over cell)
-        subboard = self.num_board[1:, :]
-
-        # Process all 4 colors in parallel
-        all_remove_indices = []
-
-        for color in range(1, 5):
-            # Create binary mask for this color
-            color_mask = (subboard == color).astype(np.int32)
-
-            # Label connected components
-            labeled_arr, n_components = label(color_mask)
-
-            # Find components with 4+ puyos
-            for comp_id in range(1, n_components + 1):
-                component_mask = (labeled_arr == comp_id)
-                group_size = np.sum(component_mask)
-
-                if group_size >= 4:
-                    has_chain = True
-                    # Get indices of this component
-                    indices = np.argwhere(component_mask)
-                    all_remove_indices.extend(indices.tolist())
-
-        # Remove all marked puyos at once (vectorized)
-        if all_remove_indices:
-            for idx_pair in all_remove_indices:
-                # +1 because we're working on subboard (row 1+)
-                self.num_board[idx_pair[0] + 1, idx_pair[1]] = 0
-
-        # Apply gravity
         if has_chain:
+            subboard[remove_mask] = 0  # ecrit directement dans self.num_board via la vue
             self.gravity()
 
         return has_chain
