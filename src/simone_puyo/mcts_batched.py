@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 import numpy as np
+import math
+import random
 
 
 @dataclass
@@ -106,39 +108,79 @@ class Node:
             return 0.
         return self.value_sum / self.N
 
-    def calculate_UCT_scores(self):
-        """
-        Calculates UCT scores per action.
+    # def calculate_UCT_scores(self):
+    #     """
+    #     Calculates UCT scores per action.
+    #
+    #     Q(a) is the average value over all chance_codes visited for that
+    #     action - an unbiased estimate of E_cc[V(s')] without requiring
+    #     explicit chance nodes.  UCT exploration is also aggregated at the
+    #     action level using the total visit count across all chance_codes.
+    #
+    #     NOTE: called only on nodes that are already evaluated (is_evaluated=True),
+    #     so self.policy is guaranteed to be set.
+    #     """
+    #     UCT_scores = {}
+    #
+    #     for action in self.legal_actions:
+    #         visited_children = self.children_by_action.get(action, [])
+    #         if visited_children:
+    #             Q = np.mean([
+    #                 child.reward + self.config.discount_factor * child.get_value()
+    #                 for child in visited_children
+    #             ])
+    #             N_action = sum(child.N for child in visited_children)
+    #         else:
+    #             Q = 0.
+    #             N_action = 0
+    #
+    #         U = (self.config.UCT_exploration_constant
+    #              * self.policy[action]
+    #              * np.sqrt(self.N) / (N_action + 1))
+    #
+    #         UCT_scores[action] = Q + U
+    #
+    #     return UCT_scores
 
-        Q(a) is the average value over all chance_codes visited for that
-        action - an unbiased estimate of E_cc[V(s')] without requiring
-        explicit chance nodes.  UCT exploration is also aggregated at the
-        action level using the total visit count across all chance_codes.
-
-        NOTE: called only on nodes that are already evaluated (is_evaluated=True),
-        so self.policy is guaranteed to be set.
+    def select_best_action(self):
         """
-        UCT_scores = {}
+        Calcule les scores UCT et retourne directement l'action de meilleur
+        score, en une seule passe : pas de dictionnaire intermediaire, pas de
+        numpy sur des scalaires/listes minuscules (np.mean, np.sqrt) dont le
+        cout de dispatch domine largement le calcul lui-meme a cette echelle.
+
+        NOTE: appelee uniquement sur des noeuds deja evalues (is_evaluated=True),
+        donc self.policy est garanti d'etre defini.
+        """
+        sqrt_N = math.sqrt(self.N)
+        discount_factor = self.config.discount_factor
+        exploration_c = self.config.UCT_exploration_constant
+
+        best_action = -1
+        best_score = -math.inf
 
         for action in self.legal_actions:
-            visited_children = self.children_by_action.get(action, [])
+            visited_children = self.children_by_action.get(action)
             if visited_children:
-                Q = np.mean([
-                    child.reward + self.config.discount_factor * child.get_value()
-                    for child in visited_children
-                ])
-                N_action = sum(child.N for child in visited_children)
+                total = 0.0
+                n_action = 0
+                for child in visited_children:
+                    child_value = child.value_sum / child.N if child.N else 0.0
+                    total += child.reward + discount_factor * child_value
+                    n_action += child.N
+                Q = total / len(visited_children)
             else:
-                Q = 0.
-                N_action = 0
+                Q = 0.0
+                n_action = 0
 
-            U = (self.config.UCT_exploration_constant
-                 * self.policy[action]
-                 * np.sqrt(self.N) / (N_action + 1))
+            U = exploration_c * self.policy[action] * sqrt_N / (n_action + 1)
+            score = Q + U
 
-            UCT_scores[action] = Q + U
+            if score > best_score:
+                best_score = score
+                best_action = action
 
-        return UCT_scores
+        return best_action
 
     def get_or_create_child(self, action, chance_code):
         """
@@ -224,19 +266,43 @@ def _evaluate_batch(nodes):
 # Tree traversal
 # ======================================================================
 
+# def _select_leaf(root):
+#     """
+#     Traverse the tree from *root* following UCT scores until reaching
+#     either a terminal node or an unevaluated leaf (is_evaluated=False).
+#
+#     Virtual loss is applied to every node along the path - including the
+#     leaf - so that concurrent simulations within the same batch are steered
+#     toward different parts of the tree.
+#
+#     Returns:
+#         leaf  : the terminal or unevaluated node at the end of the path
+#         path  : list of all nodes from root to leaf (inclusive), used to
+#                 undo virtual losses after backpropagation
+#     """
+#     node = root
+#     path = []
+#
+#     while node.is_evaluated and not node.done:
+#         node.apply_virtual_loss()
+#         path.append(node)
+#
+#         UCT_scores  = node.calculate_UCT_scores()
+#         action      = max(UCT_scores, key=UCT_scores.__getitem__)
+#         chance_code = int(np.random.randint(16))
+#         node        = node.get_or_create_child(action, chance_code)
+#
+#     # node is now either terminal or unevaluated - apply virtual loss here too
+#     node.apply_virtual_loss()
+#     path.append(node)
+#
+#     return node, path
+
+
 def _select_leaf(root):
     """
     Traverse the tree from *root* following UCT scores until reaching
     either a terminal node or an unevaluated leaf (is_evaluated=False).
-
-    Virtual loss is applied to every node along the path - including the
-    leaf - so that concurrent simulations within the same batch are steered
-    toward different parts of the tree.
-
-    Returns:
-        leaf  : the terminal or unevaluated node at the end of the path
-        path  : list of all nodes from root to leaf (inclusive), used to
-                undo virtual losses after backpropagation
     """
     node = root
     path = []
@@ -245,12 +311,10 @@ def _select_leaf(root):
         node.apply_virtual_loss()
         path.append(node)
 
-        UCT_scores  = node.calculate_UCT_scores()
-        action      = max(UCT_scores, key=UCT_scores.__getitem__)
-        chance_code = int(np.random.randint(16))
+        action      = node.select_best_action()
+        chance_code = random.randint(0, 15)
         node        = node.get_or_create_child(action, chance_code)
 
-    # node is now either terminal or unevaluated - apply virtual loss here too
     node.apply_virtual_loss()
     path.append(node)
 
