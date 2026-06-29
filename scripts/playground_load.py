@@ -80,7 +80,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_workers = 4
-    n_cycles = 10  #
+    n_cycles = 160  # 16 cycles roughly take 1h (3400s)
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 20
