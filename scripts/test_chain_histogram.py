@@ -11,7 +11,7 @@ from src.simone_puyo.utils import random_argmax_in_array
 
 
 if __name__ == '__main__':
-    agent_type = 'mlp'
+    agent_type = 'resnet'
     with_mcts = True
     n_test_games = 100
 
@@ -29,12 +29,24 @@ if __name__ == '__main__':
     max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
+    # mcts_config = MCTSConfig(
+    #     n_simulations=500,
+    #     UCT_exploration_constant=1.5,
+    #     discount_factor=0.99,
+    #     dirichlet_alpha=0.3,
+    #     dirichlet_epsilon=0.25,
+    #     tau_max=1.,
+    #     tau_min=1.,
+    #     batch_size=32,
+    #     virtual_loss=2.
+    # )
+
     mcts_config = MCTSConfig(
         n_simulations=500,
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
-        dirichlet_alpha=0.3,
-        dirichlet_epsilon=0.25,
+        dirichlet_alpha=0.,
+        dirichlet_epsilon=0.,
         tau_max=1.,
         tau_min=1.,
         batch_size=32,
@@ -65,10 +77,12 @@ if __name__ == '__main__':
                 _, policy, root = run_mcts(actor.agent, actor.game, config=actor.mcts_config, root=root, training=False)
                 random_index = random_argmax_in_array(policy[legal_actions])
                 action = legal_actions[random_index]
+
+                _, reward, done = actor.game.step(action)
+
                 new_tsumo = [int(p) for p in actor.game.state.queue.queue[2, :]]
                 chance_code = get_chance_code(new_tsumo)
 
-                _, reward, done = actor.game.step(action)
                 if reward != 0.:
                     if reward == GAMEOVER_REWARD:
                         gameovers += 1
