@@ -29,18 +29,6 @@ if __name__ == '__main__':
     max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
-    # mcts_config = MCTSConfig(
-    #     n_simulations=500,
-    #     UCT_exploration_constant=1.5,
-    #     discount_factor=0.99,
-    #     dirichlet_alpha=0.3,
-    #     dirichlet_epsilon=0.25,
-    #     tau_max=1.,
-    #     tau_min=1.,
-    #     batch_size=32,
-    #     virtual_loss=2.
-    # )
-
     mcts_config = MCTSConfig(
         n_simulations=500,
         UCT_exploration_constant=1.5,
