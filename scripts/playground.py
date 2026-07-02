@@ -7,7 +7,7 @@ import pickle
 
 from src.simone_puyo.agents import ResNetConfig, ResNetAgent, MLPConfig, MLPAgent
 from src.simone_puyo.puyo import PuyoGame
-from src.simone_puyo.mcts_batched import MCTSConfig
+from src.simone_puyo.mcts import MCTSConfig
 from src.simone_puyo.replay import ReplayConfig
 from src.simone_puyo.actor import Actor
 

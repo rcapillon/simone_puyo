@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 from src.simone_puyo.agents import ResNetConfig, ResNetAgent, MLPConfig, MLPAgent
 from src.simone_puyo.puyo import PuyoGame, GAMEOVER_REWARD, get_chance_code
-from src.simone_puyo.mcts_batched import MCTSConfig, Node, run_mcts
+from src.simone_puyo.mcts import MCTSConfig, Node, run_mcts
 from src.simone_puyo.replay import ReplayConfig
 from src.simone_puyo.actor import Actor
 from src.simone_puyo.utils import random_argmax_in_array

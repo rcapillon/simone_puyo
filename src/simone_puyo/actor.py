@@ -1,7 +1,7 @@
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 
-from .mcts_numba import Node, run_mcts
+from .mcts import Node, run_mcts
 from .utils import random_argmax_in_array
 from .replay import ReplayBuffer, EpisodeBuffer
 from .puyo import get_chance_code

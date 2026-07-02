@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 from src.simone_puyo.agents import ResNetConfig, ResNetAgent
 from src.simone_puyo.puyo import PuyoGame, GAMEOVER_REWARD, get_chance_code
-from src.simone_puyo.mcts_numba import MCTSConfig, Node, run_mcts
+from src.simone_puyo.mcts import MCTSConfig, Node, run_mcts
 from src.simone_puyo.replay import ReplayConfig
 from src.simone_puyo.actor import Actor
 from src.simone_puyo.utils import random_argmax_in_array
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=3000,
+        n_simulations=500,
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.,
