@@ -3,8 +3,6 @@ import numpy as np
 import pickle
 from dataclasses import dataclass
 
-from .puyo import GAMEOVER_REWARD
-
 
 @dataclass
 class ReplayConfig:
