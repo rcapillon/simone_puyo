@@ -1,5 +1,3 @@
-# UNUSED CODE, KEPT FOR REFERENCE
-
 from dataclasses import dataclass
 import numpy as np
 import math
