@@ -5,38 +5,40 @@ from time import time
 import matplotlib.pyplot as plt
 import pickle
 
-from src.simone_puyo.agents import ResNetConfig, ResNetAgent
-from src.simone_puyo.puyo import PuyoGame
+from src.simone_puyo.agents_augmented import ResNetConfig, ResNetAgent
+from src.simone_puyo.puyo_augmented import PuyoGame
 from src.simone_puyo.mcts import MCTSConfig
 from src.simone_puyo.replay import ReplayConfig
-from src.simone_puyo.actor import Actor
+from src.simone_puyo.actor_augmented import Actor
 
 
 if __name__ == '__main__':
-    agent_name = 'resnet_1_3K'
+    agent_name = 'resnet_augmented'
     agent_config = ResNetConfig(
-        num_res_blocks=10,
-        num_filters=160,
+        num_res_blocks=6,
+        num_filters=64,
         kernel_size=3,
-        policy_filters=4,
-        policy_hidden_size=256,
+        policy_filters=2,
+        policy_hidden_size=128,
         value_filters=2,
-        value_hidden_size=256,
+        value_hidden_size=128,
         l2_regularization=2e-4,
         use_batch_norm=True,
-        learning_rate=1e-4,
+        learning_rate=5e-4,
         batch_size=256,
         value_loss_weight=1.,
         policy_loss_weight=1.
     )
     agent = ResNetAgent(name=agent_name, config=agent_config)
-    agent.build_model(summary=True)
+
+    agent.load_model('../../saved_agents', summary=False)
+    print('Agent loaded.')
 
     max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=3000,
+        n_simulations=500,
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.3,
@@ -53,16 +55,19 @@ if __name__ == '__main__':
     )
 
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
+    actor.load_replay_buffer('../../saved_data/')
+    print(f'Replay Buffer loaded: size {actor.replay_buffer.__len__()}.')
 
     # TRAINING / TEST CYCLES
     n_workers = 4
-    n_cycles = 1
+    n_cycles = 6  #
     training_cycles = 10
     collect_cycles = 1
-    gradient_steps_per_cycle = 50
+    gradient_steps_per_cycle = 20
     buffer_min_length = 5000
 
-    collected_rewards = []
+    with open(os.path.join('../../saved_data/', agent_name + '_collected_rewards.pkl'), 'rb') as f1:
+        collected_rewards = pickle.load(f1)
 
     t0 = time()
     for i in range(n_cycles):
