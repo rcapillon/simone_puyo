@@ -51,7 +51,8 @@ if __name__ == '__main__':
     else:
         raise ValueError(f'Unknown agent type: {agent_type}')
 
-    agent.build_model(summary=True)
+    agent.load_model('../../saved_agents', summary=False)
+    print('Agent loaded.')
 
     max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
@@ -74,16 +75,19 @@ if __name__ == '__main__':
     )
 
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
+    actor.load_replay_buffer('../../saved_data/')
+    print(f'Replay Buffer loaded: size {actor.replay_buffer.__len__()}.')
 
     # TRAINING / TEST CYCLES
     n_workers = 4
-    n_cycles = 1
+    n_cycles = 160  # 16 cycles roughly take 1h (3400s)
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 20
     buffer_min_length = 5000
 
-    collected_rewards = []
+    with open(os.path.join('../../saved_data/', agent_name + '_collected_rewards.pkl'), 'rb') as f1:
+        collected_rewards = pickle.load(f1)
 
     t0 = time()
     for i in range(n_cycles):
@@ -173,9 +177,9 @@ if __name__ == '__main__':
     plt.savefig('./' + agent_name + '_collected_rewards.png')
 
     # save
-    replay_path_to_dir = '../saved_data/'
-    agent_path_to_dir = '../saved_agents/'
+    replay_path_to_dir = '../../saved_data/'
+    agent_path_to_dir = '../../saved_agents/'
     actor.agent.save_model(agent_path_to_dir)
     actor.replay_buffer.save(replay_path_to_dir)
-    with open(os.path.join('../saved_data/', agent_name + '_collected_rewards.pkl'), 'wb') as f:
+    with open(os.path.join('../../saved_data/', agent_name + '_collected_rewards.pkl'), 'wb') as f:
         pickle.dump(collected_rewards, f)

@@ -24,7 +24,7 @@ if __name__ == '__main__':
     else:
         raise ValueError(f'Unknown agent type: {agent_type}')
 
-    agent.load_model('../saved_agents', summary=False)
+    agent.load_model('../../saved_agents', summary=False)
 
     max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
