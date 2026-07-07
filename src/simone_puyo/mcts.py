@@ -9,14 +9,14 @@ class MCTSConfig:
     """
     Dataclass to configure the Monte Carlo Tree Search
     """
-    n_simulations: int = 100
+    n_simulations: int = 500
 
     # Number of leaves collected before a single batched network call.
     # Must divide n_simulations evenly for simplicity, but is handled
     # gracefully even if it does not.
     # Rule of thumb: 8–32 is a good starting range. Larger values
     # increase GPU utilisation but delay backpropagation.
-    batch_size: int = 8
+    batch_size: int = 32
 
     UCT_exploration_constant: float = 1.5
     discount_factor: float = 0.99
@@ -28,7 +28,7 @@ class MCTSConfig:
     # A value of 1.0 temporarily counts each in-flight simulation as a
     # loss of -1, steering other simulations away from the same path.
     # Increase if your branching factor is low and collisions are frequent.
-    virtual_loss: float = 1.0
+    virtual_loss: float = 2.0
 
     # Temperature schedule based on board fill ratio
     # tau_max  : temperature applied on an empty board (fill = 0)
