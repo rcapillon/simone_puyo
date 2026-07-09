@@ -3,6 +3,8 @@ import numpy as np
 import pickle
 from dataclasses import dataclass
 
+from .puyo_augmented import can_mirror_observation, mirror_observation, mirror_policy
+
 
 @dataclass
 class ReplayConfig:
@@ -17,6 +19,8 @@ class ReplayConfig:
     per_beta_end: float = 1.0         # ... en fin d'entrainement
     per_beta_anneal_steps: int = 200000   # nb d'appels a sample_batch() pour interpoler beta
     per_epsilon: float = 1e-3         # evite priorite nulle (transition jamais rechoisie)
+
+    use_symmetry_augmentation: bool = True
 
     def __post_init__(self):
         assert 0.0 <= self.value_target_mix <= 1.0, "value_target_mix doit être dans [0, 1]"
@@ -79,6 +83,35 @@ class ReplayBuffer:
         self._policies = np.zeros((capacity, n_actions), dtype=np.float32)
         self._priorities = np.full(capacity, self._max_priority, dtype=np.float32)  # NOUVEAU
 
+    @staticmethod
+    def _augment_with_mirror(observations, targets, policies):
+        """
+        Double les transitions dont la case de game over (row=1, col=2) est
+        libre, en ajoutant leur symetrique horizontal (observation + policy
+        miroir). La cible de valeur est inchangee : le retour/valeur ne
+        depend pas de l'orientation gauche-droite du plateau.
+        """
+        mirrorable = np.array(
+            [can_mirror_observation(obs) for obs in observations], dtype=bool
+        )
+
+        if not np.any(mirrorable):
+            return observations, targets, policies
+
+        mirrored_observations = np.stack(
+            [mirror_observation(obs) for obs in observations[mirrorable]]
+        )
+        mirrored_policies = np.stack(
+            [mirror_policy(p) for p in policies[mirrorable]]
+        )
+        mirrored_targets = targets[mirrorable]
+
+        all_observations = np.concatenate([observations, mirrored_observations], axis=0)
+        all_targets = np.concatenate([targets, mirrored_targets], axis=0)
+        all_policies = np.concatenate([policies, mirrored_policies], axis=0)
+
+        return all_observations, all_targets, all_policies
+
     def add_episode(self, episode):
         episode.compute_returns()
 
@@ -89,6 +122,11 @@ class ReplayBuffer:
 
         mix = self.config.value_target_mix
         blended_targets = (1 - mix) * returns + mix * values
+
+        if self.config.use_symmetry_augmentation:
+            observations, blended_targets, policies = self._augment_with_mirror(
+                observations, blended_targets, policies
+            )
 
         n_new = len(observations)
         if n_new == 0:

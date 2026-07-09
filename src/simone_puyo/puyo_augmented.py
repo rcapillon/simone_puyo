@@ -384,6 +384,73 @@ def get_legal_actions(board):
     return np.flatnonzero(mask).tolist()
 
 
+def _build_action_mirror_map():
+    """
+    Table de correspondance action <-> action miroir (symetrie gauche-droite,
+    colonne c -> 5-c), deduite de _place_tsumo_numba :
+      0-5   : vertical, puyo1 bas/puyo2 haut, colonne = action
+      6-11  : vertical, puyo2 bas/puyo1 haut, colonne = action-6
+      12-16 : horizontal, puyo1 gauche/puyo2 droite
+      17-21 : horizontal, puyo2 gauche/puyo1 droite
+    """
+    mirror_map = np.empty(22, dtype=np.int64)
+    for a in range(6):
+        mirror_map[a] = 5 - a
+    for a in range(6, 12):
+        mirror_map[a] = 17 - a
+    for a in range(12, 22):
+        mirror_map[a] = 33 - a
+    return mirror_map
+
+
+ACTION_MIRROR_MAP = _build_action_mirror_map()
+
+
+# Position de la case de game over (row=1, col=2 dans num_board / onehot_state)
+# et de sa colonne symetrique (row=1, col=3). check_gameover() ne teste QUE la
+# colonne 2 : le moteur de jeu n'est donc pas invariant par symetrie horizontale.
+GAMEOVER_ROW = 1
+GAMEOVER_COL = 2
+GAMEOVER_COL_MIRROR = 5 - GAMEOVER_COL  # = 3
+
+
+def can_mirror_observation(observation):
+    """
+    False si la case de game over (row=1, col=2) OU sa symetrique (row=1, col=3)
+    est occupee dans cet etat.
+
+    - col=2 occupee : ne devrait en theorie jamais arriver pour une observation
+      stockee (check_gameover() ne teste que cette colonne, et l'episode
+      s'arrete des que done=True), mais on garde le test par securite.
+    - col=3 occupee : le miroir deplacerait ce puyo en colonne 2, produisant un
+      etat qui ressemble a un game over (colonne 2 remplie) alors qu'il serait
+      associe a une politique/valeur de continuation normale -- un etat hors
+      distribution que le vrai moteur ne produit jamais pour une transition
+      non terminale.
+    """
+    col2_occupied = np.any(observation[GAMEOVER_ROW, GAMEOVER_COL, :4])
+    col3_occupied = np.any(observation[GAMEOVER_ROW, GAMEOVER_COL_MIRROR, :4])
+    return not col2_occupied and not col3_occupied
+
+
+def mirror_observation(observation):
+    """
+    Symetrie horizontale d'un etat one-hot (13, 6, 30) : inversion de l'axe
+    des colonnes. Valide pour tous les canaux : couleurs et taille de groupe
+    (spatiaux, correctement reflechis), hauteur de colonne (spatial, colonnes
+    permutees comme attendu), canaux de queue (constants sur les colonnes,
+    donc inchanges par l'inversion).
+    """
+    return observation[:, ::-1, :].copy()
+
+
+def mirror_policy(policy):
+    """
+    Symetrie horizontale d'un vecteur de politique (22,).
+    """
+    return policy[ACTION_MIRROR_MAP]
+
+
 class TsumoQueue:
     """
     Class for queue of upcoming puyo pairs
