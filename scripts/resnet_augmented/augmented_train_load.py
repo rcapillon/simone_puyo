@@ -50,8 +50,7 @@ if __name__ == '__main__':
     )
 
     replay_config = ReplayConfig(
-        max_capacity=50000,
-        normalize_returns=True
+        max_capacity=50000
     )
 
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
@@ -60,7 +59,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_workers = 4
-    n_cycles = 6  #
+    n_cycles = 180  # 180 cycles per work day
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 20

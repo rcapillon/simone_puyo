@@ -48,8 +48,7 @@ if __name__ == '__main__':
     )
 
     replay_config = ReplayConfig(
-        max_capacity=50000,
-        normalize_returns=True
+        max_capacity=50000
     )
 
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
