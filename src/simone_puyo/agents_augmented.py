@@ -270,24 +270,62 @@ class ResNetAgent:
         with open(scores_path, 'wb') as f:
             pickle.dump(self.test_scores, f)
 
-    def train(self, inputs, value_outputs, policy_outputs, epochs=1, verbose=2):
+    def train(self, inputs, value_outputs, policy_outputs, sample_weight=None, epochs=1, verbose=2):
         """
-        Entraîne le modèle sur un batch
+        Entraîne le modèle sur un batch via une boucle manuelle (GradientTape).
+
+        NOTE: on n'utilise plus model.fit() car Keras 3 résout sample_weight de
+        façon incohérente sur les modèles fonctionnels multi-sorties nommées
+        (outputs=[value_output, policy_output] avec loss={'value_head':..., 'policy_head':...}) :
+        un sample_weight en dict provoque un KeyError interne (resolve_path positionnel),
+        un sample_weight en liste est rejeté car sa structure ne matche pas celle de y (dict).
+        La boucle manuelle évite complètement ce problème.
         """
-        history = self.model.fit(
-            inputs,
-            {'value_head': value_outputs, 'policy_head': policy_outputs},
-            batch_size=self.config.batch_size,
-            epochs=epochs,
-            verbose=verbose
-        )
+        inputs = tf.convert_to_tensor(inputs, dtype=tf.float32)
+        value_targets = tf.convert_to_tensor(value_outputs, dtype=tf.float32)
+        policy_targets = tf.convert_to_tensor(policy_outputs, dtype=tf.float32)
 
-        # Sauvegarder les losses
-        value_loss = history.history['value_head_loss'][-1]
-        policy_loss = history.history['policy_head_loss'][-1]
-        self.training_loss.append((value_loss, policy_loss))
+        if sample_weight is None:
+            sample_weight = tf.ones_like(value_targets)
+        else:
+            sample_weight = tf.convert_to_tensor(sample_weight, dtype=tf.float32)
 
-        return history
+        cce = keras.losses.CategoricalCrossentropy(reduction='none')
+
+        last_value_loss = None
+        last_policy_loss = None
+
+        for _ in range(epochs):
+            with tf.GradientTape() as tape:
+                value_pred, policy_pred = self.model(inputs, training=True)
+                value_pred = tf.squeeze(value_pred, axis=-1)  # (batch, 1) -> (batch,)
+
+                value_loss_per_sample = tf.square(value_targets - value_pred)
+                policy_loss_per_sample = cce(policy_targets, policy_pred)
+
+                weighted_value_loss = tf.reduce_mean(value_loss_per_sample * sample_weight)
+                weighted_policy_loss = tf.reduce_mean(policy_loss_per_sample * sample_weight)
+
+                reg_loss = tf.add_n(self.model.losses) if self.model.losses else 0.0
+
+                total_loss = (
+                    self.config.value_loss_weight * weighted_value_loss
+                    + self.config.policy_loss_weight * weighted_policy_loss
+                    + reg_loss
+                )
+
+            grads = tape.gradient(total_loss, self.model.trainable_variables)
+            self.model.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
+
+            last_value_loss = float(weighted_value_loss.numpy())
+            last_policy_loss = float(weighted_policy_loss.numpy())
+
+            if verbose:
+                print(f"value_loss: {last_value_loss:.4f} - policy_loss: {last_policy_loss:.4f}")
+
+        self.training_loss.append((last_value_loss, last_policy_loss))
+
+        return {'value_head_loss': last_value_loss, 'policy_head_loss': last_policy_loss}
 
     def _build_predict_fn(self):
         """
