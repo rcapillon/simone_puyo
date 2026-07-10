@@ -15,16 +15,16 @@ from src.simone_puyo.actor_augmented import Actor
 if __name__ == '__main__':
     agent_name = 'resnet_augmented'
     agent_config = ResNetConfig(
-        num_res_blocks=6,
-        num_filters=64,
+        num_res_blocks=10,
+        num_filters=96,
         kernel_size=3,
-        policy_filters=2,
-        policy_hidden_size=128,
+        policy_filters=4,
+        policy_hidden_size=256,
         value_filters=2,
-        value_hidden_size=128,
-        l2_regularization=2e-4,
+        value_hidden_size=256,
+        l2_regularization=1.5e-4,
         use_batch_norm=True,
-        learning_rate=5e-4,
+        learning_rate=3e-4,
         batch_size=256,
         value_loss_weight=1.,
         policy_loss_weight=1.
@@ -32,17 +32,17 @@ if __name__ == '__main__':
     agent = ResNetAgent(name=agent_name, config=agent_config)
     agent.build_model(summary=True)
 
-    max_moves = 20
+    max_moves = 40
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=500,
-        UCT_exploration_constant=1.5,
-        discount_factor=0.99,
-        dirichlet_alpha=0.3,
+        n_simulations=800,
+        UCT_exploration_constant=2.,
+        discount_factor=0.995,
+        dirichlet_alpha=0.5,
         dirichlet_epsilon=0.25,
-        tau_max=2.,
-        tau_min=0.5,
+        tau_max=2.5,
+        tau_min=0.3,
         batch_size=32,
         virtual_loss=2.
     )
@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_workers = 4
-    n_cycles = 7
+    n_cycles = 1
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 20

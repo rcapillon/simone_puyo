@@ -12,7 +12,7 @@ from src.simone_puyo.utils import random_argmax_in_array
 
 if __name__ == '__main__':
     agent_name = 'resnet_augmented'
-    with_mcts = True
+    with_mcts = False
     n_test_games = 100
 
     agent = ResNetAgent(name=agent_name)
