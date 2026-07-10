@@ -5,7 +5,7 @@ Puyo Puyo.
 ## Installation
 Create and/or activate a virtual environment, then clone the package using
 ```
-git clone https://github.com/rcapillon/simone2026.git
+git clone https://github.com/rcapillon/simone_puyo.git
 ```
 Then install the package using
 ```
@@ -14,5 +14,4 @@ pip install .
 ```
 
 ## Usage
-For now, look in the scripts folder for usage examples. Two different agents, MLP and ResNet, are available. Samples 
-can be collected in parallel.
+For now, look in the scripts folder for usage examples. Samples can be collected in parallel.
