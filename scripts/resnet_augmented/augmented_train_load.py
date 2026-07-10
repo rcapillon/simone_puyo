@@ -49,13 +49,17 @@ if __name__ == '__main__':
         virtual_loss=2.
     )
 
+    replay_config = ReplayConfig(
+        max_capacity=50000
+    )
+
     actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
     actor.load_replay_buffer('../../saved_data/')
     print(f'Replay Buffer loaded: size {actor.replay_buffer.__len__()}.')
 
     # TRAINING / TEST CYCLES
     n_workers = 4
-    n_cycles = 160  # 140-180 cycles per work day
+    n_cycles = 1  #
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 20
