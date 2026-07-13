@@ -116,12 +116,24 @@ class Actor:
 
     def train_on_batch(self, epochs=1, verbose=2):
         """
-        train agent for a single step from a random sample batch
+        train agent for a single step from a prioritized sample batch
         """
-        batch_observations, batch_returns, batch_policies = self.replay_buffer.sample_batch(
-            self.agent.config.batch_size
+        batch_observations, batch_returns, batch_policies, indices, weights = \
+            self.replay_buffer.sample_batch(self.agent.config.batch_size)
+
+        # TD-error = retour cible - valeur actuelle predite par le reseau,
+        # utilise pour rafraichir les priorites (avant l'update des poids,
+        # donc coherent avec l'erreur qui a motive ce tirage).
+        predicted_values, _ = self.agent(batch_observations)
+        predicted_values = np.asarray(predicted_values).reshape(-1)
+        td_errors = batch_returns - predicted_values
+
+        self.agent.train(
+            batch_observations, batch_returns, batch_policies,
+            sample_weight=weights, epochs=epochs, verbose=verbose
         )
-        self.agent.train(batch_observations, batch_returns, batch_policies, epochs=epochs, verbose=verbose)
+
+        self.replay_buffer.update_priorities(indices, td_errors)
 
     def play_test_game(self):
         """

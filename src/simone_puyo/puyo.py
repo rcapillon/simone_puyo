@@ -305,6 +305,48 @@ def _place_tsumo_numba(board, puyo1, puyo2, move):
             board[idx_puyo2, col2_idx] = puyo1
 
 
+@njit(cache=True)
+def _compute_group_size_map(subboard):
+    """
+    Pour chaque cellule occupee du plateau jouable (12x6), retourne la taille
+    de sa composante connexe normalisee par 3. Toujours dans [0, 1] puisque
+    les groupes >= 4 sont resolus par resolve_chain avant tout appel a get_input.
+    """
+    nrow, ncol = subboard.shape
+    visited = np.zeros((nrow, ncol), dtype=np.bool_)
+    size_map = np.zeros((nrow, ncol), dtype=np.float32)
+    stack_r = np.empty(nrow * ncol, dtype=np.int32)
+    stack_c = np.empty(nrow * ncol, dtype=np.int32)
+    comp_r  = np.empty(nrow * ncol, dtype=np.int32)
+    comp_c  = np.empty(nrow * ncol, dtype=np.int32)
+
+    for r0 in range(nrow):
+        for c0 in range(ncol):
+            color = subboard[r0, c0]
+            if color == 0 or visited[r0, c0]:
+                continue
+            size = 0; sp = 0
+            stack_r[sp] = r0; stack_c[sp] = c0; sp += 1
+            visited[r0, c0] = True
+            while sp > 0:
+                sp -= 1
+                r = stack_r[sp]; c = stack_c[sp]
+                comp_r[size] = r; comp_c[size] = c; size += 1
+                if r+1 < nrow and not visited[r+1,c] and subboard[r+1,c]==color:
+                    visited[r+1,c]=True; stack_r[sp]=r+1; stack_c[sp]=c; sp+=1
+                if r-1 >= 0  and not visited[r-1,c] and subboard[r-1,c]==color:
+                    visited[r-1,c]=True; stack_r[sp]=r-1; stack_c[sp]=c; sp+=1
+                if c+1 < ncol and not visited[r,c+1] and subboard[r,c+1]==color:
+                    visited[r,c+1]=True; stack_r[sp]=r; stack_c[sp]=c+1; sp+=1
+                if c-1 >= 0  and not visited[r,c-1] and subboard[r,c-1]==color:
+                    visited[r,c-1]=True; stack_r[sp]=r; stack_c[sp]=c-1; sp+=1
+            normalized = size / 3.0
+            for i in range(size):
+                size_map[comp_r[i], comp_c[i]] = normalized
+
+    return size_map
+
+
 # def get_legal_actions(board):
 #     """
 #     Return a list of all legal moves on the current state of the board.
@@ -340,6 +382,73 @@ def get_legal_actions(board):
     """
     mask = _legal_actions_mask_numba(board[1, :])
     return np.flatnonzero(mask).tolist()
+
+
+def _build_action_mirror_map():
+    """
+    Table de correspondance action <-> action miroir (symetrie gauche-droite,
+    colonne c -> 5-c), deduite de _place_tsumo_numba :
+      0-5   : vertical, puyo1 bas/puyo2 haut, colonne = action
+      6-11  : vertical, puyo2 bas/puyo1 haut, colonne = action-6
+      12-16 : horizontal, puyo1 gauche/puyo2 droite
+      17-21 : horizontal, puyo2 gauche/puyo1 droite
+    """
+    mirror_map = np.empty(22, dtype=np.int64)
+    for a in range(6):
+        mirror_map[a] = 5 - a
+    for a in range(6, 12):
+        mirror_map[a] = 17 - a
+    for a in range(12, 22):
+        mirror_map[a] = 33 - a
+    return mirror_map
+
+
+ACTION_MIRROR_MAP = _build_action_mirror_map()
+
+
+# Position de la case de game over (row=1, col=2 dans num_board / onehot_state)
+# et de sa colonne symetrique (row=1, col=3). check_gameover() ne teste QUE la
+# colonne 2 : le moteur de jeu n'est donc pas invariant par symetrie horizontale.
+GAMEOVER_ROW = 1
+GAMEOVER_COL = 2
+GAMEOVER_COL_MIRROR = 5 - GAMEOVER_COL  # = 3
+
+
+def can_mirror_observation(observation):
+    """
+    False si la case de game over (row=1, col=2) OU sa symetrique (row=1, col=3)
+    est occupee dans cet etat.
+
+    - col=2 occupee : ne devrait en theorie jamais arriver pour une observation
+      stockee (check_gameover() ne teste que cette colonne, et l'episode
+      s'arrete des que done=True), mais on garde le test par securite.
+    - col=3 occupee : le miroir deplacerait ce puyo en colonne 2, produisant un
+      etat qui ressemble a un game over (colonne 2 remplie) alors qu'il serait
+      associe a une politique/valeur de continuation normale -- un etat hors
+      distribution que le vrai moteur ne produit jamais pour une transition
+      non terminale.
+    """
+    col2_occupied = np.any(observation[GAMEOVER_ROW, GAMEOVER_COL, :4])
+    col3_occupied = np.any(observation[GAMEOVER_ROW, GAMEOVER_COL_MIRROR, :4])
+    return not col2_occupied and not col3_occupied
+
+
+def mirror_observation(observation):
+    """
+    Symetrie horizontale d'un etat one-hot (13, 6, 30) : inversion de l'axe
+    des colonnes. Valide pour tous les canaux : couleurs et taille de groupe
+    (spatiaux, correctement reflechis), hauteur de colonne (spatial, colonnes
+    permutees comme attendu), canaux de queue (constants sur les colonnes,
+    donc inchanges par l'inversion).
+    """
+    return observation[:, ::-1, :].copy()
+
+
+def mirror_policy(policy):
+    """
+    Symetrie horizontale d'un vecteur de politique (22,).
+    """
+    return policy[ACTION_MIRROR_MAP]
 
 
 class TsumoQueue:
@@ -598,16 +707,41 @@ class GameState:
 
     def make_onehot_state(self):
         """
-        prepares a combined one-hot representation of both the game board and the puyo queue
+        Representation one-hot combinee du plateau et de la queue.
+        Shape : (13, 6, 30)
+
+        Channels:
+          0-3  : board one-hot couleurs (4 canaux, lignes 0-12)
+          4    : taille de composante connexe normalisee (lignes 1-12, 0 ailleurs)
+          5    : hauteur normalisee de chaque colonne, broadcast sur toutes les lignes
+          6-29 : queue one-hot, 3 paires x 2 puyos x 4 couleurs = 24 canaux binaires
+                 chaque canal est constant (broadcast) sur toutes les positions (r, c)
         """
         self.board.update_onehot_board()
-        self.queue.update_onehot_queue()
-        onehot_state = np.zeros((self.board.num_board.shape[0] + 1,
-                                 self.board.num_board.shape[1], 4), dtype=np.float32)
-        onehot_state[:-1, :, :] = self.board.onehot_board
-        onehot_state[-1, :2, :] = self.queue.onehot_queue[0, :, :]
-        onehot_state[-1, 2:4, :] = self.queue.onehot_queue[1, :, :]
-        onehot_state[-1, 4:6, :] = self.queue.onehot_queue[2, :, :]
+        board = self.board.num_board  # (13, 6) int32
+
+        onehot_state = np.zeros((13, 6, 30), dtype=np.float32)
+
+        # Channels 0-3 : board one-hot
+        onehot_state[:, :, :4] = self.board.onehot_board
+
+        # Channel 4 : taille de composante connexe (uniquement lignes jouables 1-12)
+        onehot_state[1:, :, 4] = _compute_group_size_map(board[1:, :])
+
+        # Channel 5 : hauteur de colonne normalisee (meme valeur sur toute la hauteur)
+        heights = np.count_nonzero(board[1:, :], axis=0) / 12.0  # (6,)
+        onehot_state[:, :, 5] = heights  # broadcast sur les 13 lignes
+
+        # Channels 6-29 : queue one-hot
+        # Ordre : pair0_puyo0, pair0_puyo1, pair1_puyo0, pair1_puyo1, pair2_puyo0, pair2_puyo1
+        # Chaque puyo occupe 4 channels (one-hot sur les 4 couleurs), broadcast spatial
+        ch = 6
+        for pair_idx in range(3):
+            for puyo_idx in range(2):
+                color = int(self.queue.queue[pair_idx, puyo_idx])  # 1-4
+                if 1 <= color <= 4:
+                    onehot_state[:, :, ch + color - 1] = 1.0
+                ch += 4
 
         return onehot_state
 

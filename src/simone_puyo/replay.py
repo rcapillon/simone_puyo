@@ -3,7 +3,7 @@ import numpy as np
 import pickle
 from dataclasses import dataclass
 
-from .puyo_augmented import can_mirror_observation, mirror_observation, mirror_policy
+from .puyo import can_mirror_observation, mirror_observation, mirror_policy
 
 
 @dataclass

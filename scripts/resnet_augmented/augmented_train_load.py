@@ -5,11 +5,11 @@ from time import time
 import matplotlib.pyplot as plt
 import pickle
 
-from src.simone_puyo.agents_augmented import ResNetConfig, ResNetAgent
-from src.simone_puyo.puyo_augmented import PuyoGame
+from src.simone_puyo.agent import ResNetConfig, ResNetAgent
+from src.simone_puyo.puyo import PuyoGame
 from src.simone_puyo.mcts import MCTSConfig
 from src.simone_puyo.replay import ReplayConfig
-from src.simone_puyo.actor_augmented import Actor
+from src.simone_puyo.actor import Actor
 
 
 if __name__ == '__main__':
@@ -59,7 +59,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_workers = 4
-    n_cycles = 1  #
+    n_cycles = 4  # 2 cycles take roughly 1h
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 20

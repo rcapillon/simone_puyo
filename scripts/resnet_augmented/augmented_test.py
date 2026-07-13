@@ -2,17 +2,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from src.simone_puyo.agents_augmented import ResNetConfig, ResNetAgent
-from src.simone_puyo.puyo_augmented import PuyoGame, GAMEOVER_REWARD, get_chance_code
+from src.simone_puyo.agent import ResNetConfig, ResNetAgent
+from src.simone_puyo.puyo import PuyoGame, GAMEOVER_REWARD, get_chance_code
 from src.simone_puyo.mcts import MCTSConfig, Node, run_mcts
 from src.simone_puyo.replay import ReplayConfig
-from src.simone_puyo.actor_augmented import Actor
+from src.simone_puyo.actor import Actor
 from src.simone_puyo.utils import random_argmax_in_array
 
 
 if __name__ == '__main__':
     agent_name = 'resnet_augmented'
-    with_mcts = False
+    with_mcts = True
     n_test_games = 100
 
     agent = ResNetAgent(name=agent_name)
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=500,
+        n_simulations=800,
         UCT_exploration_constant=1.5,
         discount_factor=0.99,
         dirichlet_alpha=0.,
