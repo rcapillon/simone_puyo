@@ -34,7 +34,7 @@ if __name__ == '__main__':
     agent.load_model('../../saved_agents', summary=False)
     print('Agent loaded.')
 
-    max_moves = 80
+    max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
