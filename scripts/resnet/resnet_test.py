@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     agent.load_model('../../saved_agents', summary=False)
 
-    max_moves = 80
+    max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
@@ -46,6 +46,7 @@ if __name__ == '__main__':
         root = Node(
             reward=0.,
             done=False,
+            terminal=False,
             agent=actor.agent,
             game=actor.game,
             parent=None,
@@ -60,7 +61,7 @@ if __name__ == '__main__':
                 random_index = random_argmax_in_array(policy[legal_actions])
                 action = legal_actions[random_index]
 
-                _, reward, done = actor.game.step(action)
+                _, reward, done, terminal = actor.game.step(action)
 
                 new_tsumo = [int(p) for p in actor.game.state.queue.queue[2, :]]
                 chance_code = get_chance_code(new_tsumo)
@@ -80,6 +81,7 @@ if __name__ == '__main__':
                     new_root = Node(
                         reward=reward,
                         done=done,
+                        terminal=terminal,
                         agent=actor.agent,
                         game=actor.game,
                         parent=None,
@@ -93,7 +95,7 @@ if __name__ == '__main__':
                 random_index = random_argmax_in_array(policy[legal_actions])
                 action = legal_actions[random_index]
 
-                observation, reward, done = actor.game.step(action)
+                observation, reward, done, _ = actor.game.step(action)
 
                 if reward != 0.:
                     if reward == GAMEOVER_REWARD:

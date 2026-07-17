@@ -799,6 +799,12 @@ class PuyoGame:
         place the current pair of the queue on the board according to the chosen move
         progress the queue, resolve the chain if applicable, check for a gameover
         return chain length (int) and gameover boolean (True if gameover, False otherwise)
+
+        `done` is True whenever the episode stops (real game over OR max_moves
+        reached). `gameover` specifically flags a REAL game over, as opposed to
+        a truncation by max_moves. The distinction matters downstream: a
+        truncated episode should be bootstrapped with an estimated value
+        instead of being treated as if no future reward were possible.
         """
         self.state.board.place_tsumo_num(self.state.queue.current, action)
         self.state.queue.progress_queue()
@@ -810,7 +816,7 @@ class PuyoGame:
 
         done = True if self.n_step >= self.max_moves or gameover else False
 
-        return self.get_input(), reward, done
+        return self.get_input(), reward, done, gameover
 
     def display_screen(self, savepath=None, title='screen_frame'):
         """

@@ -51,7 +51,7 @@ class Node:
     calling the agent. The agent is called externally in batches by
     _evaluate_batch(), which sets .value, .policy, and .is_evaluated.
     """
-    def __init__(self, reward, done, agent, game, parent=None, config=MCTSConfig()):
+    def __init__(self, reward, done, terminal, agent, game, parent=None, config=MCTSConfig()):
         self.config = config
 
         self.agent = agent
@@ -67,10 +67,14 @@ class Node:
         self.done = done
 
         # Network outputs - populated lazily by _evaluate_batch().
-        # Terminal nodes need no evaluation: value is 0 by convention.
-        self.value = 0. if done else None
+        # `terminal` = real game over: no future reward is possible, value is
+        # 0 by convention and no network call is needed.
+        # `done` but not `terminal` = truncated by max_moves: the game could
+        # have continued, so this node still needs a real network evaluation
+        # to bootstrap its value instead of assuming 0.
+        self.value = 0. if terminal else None
         self.policy = None
-        self.is_evaluated = done   # terminal nodes are considered already evaluated
+        self.is_evaluated = terminal
 
         self.children = {}
         self.children_by_action = {}
@@ -185,17 +189,19 @@ class Node:
     def get_or_create_child(self, action, chance_code):
         """
         Returns a specific child node, creating it if inexistant.
-        The child is created *without* a network call (is_evaluated=False).
+        The child is created *without* a network call, unless it is a real
+        game over (is_evaluated=False, except for true terminal nodes).
         """
         key = (action, chance_code)
         if key not in self.children:
             new_game = self.game.copy()
-            _, reward, done = new_game.step(action)
+            _, reward, done, gameover = new_game.step(action)
             new_game.state.queue.insert_last_in_queue(chance_code)
 
             new_child = Node(
                 reward=reward,
                 done=done,
+                terminal=gameover,
                 agent=self.agent,
                 game=new_game,
                 parent=self,
@@ -437,6 +443,7 @@ def run_mcts(agent, game, config=MCTSConfig(), root=None, training=True):
         root = Node(
             reward=0.,
             done=False,
+            terminal=False,
             agent=agent,
             game=game,
             parent=None,

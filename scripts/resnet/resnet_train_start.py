@@ -32,7 +32,7 @@ if __name__ == '__main__':
     agent = ResNetAgent(name=agent_name, config=agent_config)
     agent.build_model(summary=True)
 
-    max_moves = 20
+    max_moves = 40
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_workers = 4
-    n_cycles = 1
+    n_cycles = 2
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 20

@@ -42,6 +42,12 @@ class EpisodeBuffer:
 
         self.discount_factor = discount_factor
 
+        # Valeur de bootstrap pour une partie tronquee par max_moves. Reste a
+        # 0. (comportement inchange) pour un vrai game over ; mise a jour
+        # depuis l'exterieur (voir Actor.collect_game) quand la partie
+        # s'arrete par troncature plutot que par un vrai game over.
+        self.bootstrap_value = 0.
+
     def store_transition(self, observation, reward, policy, value):
         self.observations.append(observation)
         self.rewards.append(reward)
@@ -50,9 +56,13 @@ class EpisodeBuffer:
 
     def compute_returns(self):
         """
-        computes the discounted returns for the whole game
+        computes the discounted returns for the whole game.
+        Starts the backward recursion from self.bootstrap_value instead of
+        always 0, so that a game truncated by max_moves (as opposed to a
+        real game over) doesn't have its final transitions' returns
+        systematically underestimated.
         """
-        value = 0
+        value = self.bootstrap_value
         for i in reversed(range(len(self.rewards))):
             value = self.rewards[i] + self.discount_factor * value
             self.returns.insert(0, value)

@@ -46,6 +46,7 @@ class Actor:
         root = Node(
             reward=0.,
             done=False,
+            terminal=False,
             agent=self.agent,
             game=game,
             parent=None,
@@ -61,7 +62,7 @@ class Actor:
             random_index = random_argmax_in_array(policy[legal_actions])
             action = legal_actions[random_index]
 
-            next_observation, reward, done = game.step(action)
+            next_observation, reward, done, gameover = game.step(action)
             new_tsumo = [int(p) for p in game.state.queue.queue[2, :]]
             chance_code = get_chance_code(new_tsumo)
             total_reward += reward
@@ -73,6 +74,7 @@ class Actor:
                 new_root = Node(
                     reward=reward,
                     done=done,
+                    terminal=gameover,
                     agent=self.agent,
                     game=game,
                     parent=None,
@@ -88,6 +90,13 @@ class Actor:
             root = new_root
 
             step += 1
+
+        if done and not gameover:
+            # Partie tronquee par max_moves, pas un vrai game over : on
+            # bootstrap avec l'estimation brute du reseau sur l'etat final
+            # plutot que de supposer (a tort) un retour futur nul.
+            bootstrap_value, _ = self.agent(next_observation)
+            episode_buffer.bootstrap_value = float(bootstrap_value)
 
         return episode_buffer, total_reward
 
@@ -152,7 +161,7 @@ class Actor:
             random_index = random_argmax_in_array(policy[legal_actions])
             action = legal_actions[random_index]
 
-            observation, reward, done = self.game.step(action)
+            observation, reward, done, _ = self.game.step(action)
             total_reward += reward
             if reward > best_reward:
                 best_reward = reward

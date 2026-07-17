@@ -24,7 +24,7 @@ if __name__ == '__main__':
         value_hidden_size=256,
         l2_regularization=1.5e-4,
         use_batch_norm=True,
-        learning_rate=3e-4,
+        learning_rate=1e-4,
         batch_size=256,
         value_loss_weight=1.,
         policy_loss_weight=1.
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=800,
+        n_simulations=1600,
         UCT_exploration_constant=2.,
         discount_factor=0.995,
         dirichlet_alpha=0.5,
@@ -59,7 +59,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_workers = 4
-    n_cycles = 4  # 2 cycles take roughly 1h
+    n_cycles = 4  # 14 cycle takes roughly 10h20min
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 20
