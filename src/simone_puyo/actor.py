@@ -1,22 +1,40 @@
 import numpy as np
+from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 
 from .mcts import Node, run_mcts
 from .utils import random_argmax_in_array
 from .replay import ReplayBuffer, EpisodeBuffer
-from .puyo import get_chance_code
+from .puyo import get_chance_code, reward_dict, chain_potential
+
+
+@dataclass
+class RewardConfig:
+    """
+    Reward shaping optionnel (potential-based, cf. Ng, Harada & Russell 1999) :
+    ajoute gamma*Phi(s') - Phi(s) a la vraie recompense de chaine, avec Phi le
+    potentiel de chaine latent (voir chain_potential dans puyo.py).
+    N'affecte QUE la recompense stockee pour l'entrainement (episode_buffer) :
+    ni MCTS (Node est toujours construit avec la vraie recompense), ni
+    total_reward (score reel rapporte/trace), ni play_test_game(). Desactive
+    par defaut : use_potential_shaping=False restaure exactement le systeme
+    actuel (recompense = uniquement les chaines effectuees).
+    """
+    use_potential_shaping: bool = False
+    potential_shaping_weight: float = 1.0
 
 
 class Actor:
     """
     Actor class containing the neural network agent, the Puyo game and a replay buffer memory
     """
-    def __init__(self, agent, game, agent_config, mcts_config, replay_config):
+    def __init__(self, agent, game, agent_config, mcts_config, replay_config, reward_config=None):
         self.agent = agent
         self.game = game
         self.agent_config = agent_config
         self.mcts_config = mcts_config
         self.replay_config = replay_config
+        self.reward_config = reward_config if reward_config is not None else RewardConfig()
         self.replay_buffer = ReplayBuffer(name=self.agent.name, config=replay_config)
 
     def reset_game(self):
@@ -62,17 +80,31 @@ class Actor:
             random_index = random_argmax_in_array(policy[legal_actions])
             action = legal_actions[random_index]
 
+            if self.reward_config.use_potential_shaping:
+                phi_s = reward_dict[min(chain_potential(game.state.board.num_board), 19)]
+
             next_observation, reward, done, gameover = game.step(action)
             new_tsumo = [int(p) for p in game.state.queue.queue[2, :]]
             chance_code = get_chance_code(new_tsumo)
-            total_reward += reward
+            total_reward += reward  # total_reward reste la vraie recompense, jamais "shapee"
+
+            stored_reward = reward
+            if self.reward_config.use_potential_shaping:
+                # Phi(s') = 0 sur un vrai game over (pas de potentiel futur),
+                # calcule normalement en cas de troncature par max_moves --
+                # meme logique que le bootstrap de troncature ci-dessous.
+                phi_s_prime = 0. if gameover else reward_dict[min(chain_potential(game.state.board.num_board), 19)]
+                shaping = self.reward_config.potential_shaping_weight * (
+                    self.mcts_config.discount_factor * phi_s_prime - phi_s
+                )
+                stored_reward = reward + shaping
 
             try:
                 new_root = root.children[(action, chance_code)]
                 new_root.parent = None
             except KeyError:
                 new_root = Node(
-                    reward=reward,
+                    reward=reward,   # la vraie recompense : la recherche MCTS n'est jamais "shapee"
                     done=done,
                     terminal=gameover,
                     agent=self.agent,
@@ -85,7 +117,7 @@ class Actor:
             policy_legal[legal_actions] = policy[legal_actions]
             policy_legal /= policy_legal.sum()
 
-            episode_buffer.store_transition(observation, reward, policy_legal, value)
+            episode_buffer.store_transition(observation, stored_reward, policy_legal, value)
             observation = next_observation
             root = new_root
 

@@ -242,6 +242,59 @@ def _apply_gravity_numba(board):
     return board
 
 
+def _resolve_chain_on_copy(board):
+    """
+    Resout la chaine sur `board` (deja modifie en place, typiquement une
+    copie jetable) exactement comme Board.resolve_chain()/chain_step() :
+    detection sur les 12 lignes visibles (subboard), gravite sur les 13
+    lignes y compris la ligne 0 cachee. Retourne la longueur de chaine.
+
+    Reste en Python pur (comme chain_step()/resolve_chain()) : numba ne
+    supporte pas l'assignation par masque booleen 2D (subboard[mask]=0)
+    en mode nopython. Seuls les noyaux de calcul appeles ici
+    (_find_chain_removals, _apply_gravity_numba) sont numba-jit.
+    """
+    chain_length = 0
+    has_chain = True
+    while has_chain:
+        subboard = board[1:, :]
+        has_chain, remove_mask = _find_chain_removals(subboard)
+        if has_chain:
+            subboard[remove_mask] = 0
+            _apply_gravity_numba(board)
+            chain_length += 1
+    return chain_length
+
+
+def chain_potential(board):
+    """
+    Potentiel de chaine latent d'un plateau : pour chacune des 6 colonnes
+    et chacune des 4 couleurs (24 hypotheses), teste l'ajout d'UN puyo de
+    cette couleur au sommet de la colonne -- sur une copie, `board` n'est
+    jamais modifie -- et resout la chaine qui en resulterait. Retourne la
+    longueur de chaine maximale obtenue sur les 24 hypotheses (0 si
+    aucune ne declenche de chaine). Utilise pour un reward shaping
+    optionnel (voir RewardConfig dans actor.py) et/ou comme diagnostic
+    independant : ne participe jamais a la vraie regle du jeu.
+    """
+    nrow, ncol = board.shape
+    best = 0
+    placing_indices = find_placing_index_vectorized(board)
+
+    for c in range(ncol):
+        idx = placing_indices[c]
+        if idx < 0:
+            continue  # colonne pleine, pas de place pour un puyo de plus
+        for color in range(1, 5):
+            trial = board.copy()
+            trial[idx, c] = color
+            chain_length = _resolve_chain_on_copy(trial)
+            if chain_length > best:
+                best = chain_length
+
+    return best
+
+
 @njit(cache=True)
 def _legal_actions_mask_numba(top_row):
     """
