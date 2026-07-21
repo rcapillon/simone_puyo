@@ -9,14 +9,14 @@ from src.simone_puyo.agent import ResNetConfig, ResNetAgent
 from src.simone_puyo.puyo import PuyoGame
 from src.simone_puyo.mcts import MCTSConfig
 from src.simone_puyo.replay import ReplayConfig
-from src.simone_puyo.actor import Actor
+from src.simone_puyo.actor import Actor, RewardConfig
 
 
 if __name__ == '__main__':
-    agent_name = 'resnet_10K'
+    agent_name = 'resnet'
     agent_config = ResNetConfig(
-        num_res_blocks=10,
-        num_filters=96,
+        num_res_blocks=12,
+        num_filters=160,
         kernel_size=3,
         policy_filters=4,
         policy_hidden_size=256,
@@ -34,11 +34,11 @@ if __name__ == '__main__':
     agent.load_model('../../saved_agents', summary=False)
     print('Agent loaded.')
 
-    max_moves = 40
+    max_moves = 20
     puyo_game = PuyoGame(max_moves=max_moves)
 
     mcts_config = MCTSConfig(
-        n_simulations=10000,
+        n_simulations=2000,
         UCT_exploration_constant=2.,
         discount_factor=0.995,
         dirichlet_alpha=0.5,
@@ -53,13 +53,18 @@ if __name__ == '__main__':
         max_capacity=50000
     )
 
-    actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config)
+    reward_config = RewardConfig(
+        use_potential_shaping=True,
+        potential_shaping_weight=1.
+    )
+
+    actor = Actor(agent, puyo_game, agent_config, mcts_config, replay_config, reward_config)
     actor.load_replay_buffer('../../saved_data/')
     print(f'Replay Buffer loaded: size {actor.replay_buffer.__len__()}.')
 
     # TRAINING / TEST CYCLES
     n_workers = 4
-    n_cycles = 4  # 4 cycles take roughly 9h
+    n_cycles = 120  #
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 20
