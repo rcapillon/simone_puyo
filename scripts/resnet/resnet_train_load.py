@@ -15,10 +15,10 @@ from src.simone_puyo.actor import Actor, RewardConfig
 if __name__ == '__main__':
     agent_name = 'resnet'
     agent_config = ResNetConfig(
-        num_res_blocks=12,
-        num_filters=160,
+        num_res_blocks=10,
+        num_filters=128,
         kernel_size=3,
-        policy_filters=4,
+        policy_filters=3,
         policy_hidden_size=256,
         value_filters=2,
         value_hidden_size=256,
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     )
     agent = ResNetAgent(name=agent_name, config=agent_config)
 
-    agent.load_model('../../saved_agents', summary=False)
+    agent.load_model('../../saved_agents', summary=True)
     print('Agent loaded.')
 
     max_moves = 20
@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
     # TRAINING / TEST CYCLES
     n_workers = 4
-    n_cycles = 120  #
+    n_cycles = 13  #
     training_cycles = 10
     collect_cycles = 1
     gradient_steps_per_cycle = 20
