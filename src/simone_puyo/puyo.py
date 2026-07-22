@@ -95,7 +95,7 @@ def get_chance_code(tsumo):
 #     return onehot_array
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def array_num2onehot(array):
     """
     transform numeric representation of an array to its one-hot encoding
@@ -167,7 +167,7 @@ def find_placing_index_vectorized(board):
     return indices
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def _find_chain_removals(subboard):
     """
     Detecte, pour TOUTES les couleurs en une seule passe (chaque cellule
@@ -223,7 +223,7 @@ def _find_chain_removals(subboard):
     return has_chain, remove_mask
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def _apply_gravity_numba(board):
     """
     Compacte chaque colonne vers le bas en preservant l'ordre relatif des
@@ -295,7 +295,7 @@ def chain_potential(board):
     return best
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def _legal_actions_mask_numba(top_row):
     """
     Retourne un masque booleen de taille 22 (legal=True) a partir de la
@@ -315,7 +315,7 @@ def _legal_actions_mask_numba(top_row):
     return mask
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def _place_tsumo_numba(board, puyo1, puyo2, move):
     placing_indices = find_placing_index_vectorized(board)
 
@@ -358,7 +358,7 @@ def _place_tsumo_numba(board, puyo1, puyo2, move):
             board[idx_puyo2, col2_idx] = puyo1
 
 
-@njit(cache=True)
+@njit(cache=True, nogil=True)
 def _compute_group_size_map(subboard):
     """
     Pour chaque cellule occupee du plateau jouable (12x6), retourne la taille

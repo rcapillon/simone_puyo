@@ -51,6 +51,12 @@ class Node:
     calling the agent. The agent is called externally in batches by
     _evaluate_batch(), which sets .value, .policy, and .is_evaluated.
     """
+    __slots__ = (
+        'config', 'agent', 'game', 'legal_actions', 'N', 'value_sum',
+        'reward', 'parent', 'done', 'value', 'policy',
+        'is_evaluated', 'children', 'children_by_action',
+    )
+
     def __init__(self, reward, done, terminal, agent, game, parent=None, config=MCTSConfig()):
         self.config = config
 
